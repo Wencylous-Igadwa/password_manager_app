@@ -1,0 +1,469 @@
+/* src/Dashboard.css */
+
+body {
+    font-family: 'Ramaraja', sans-serif; /* Set Ramaraja font for all text */
+    background-color: #f4f4f4;
+    margin: 0;
+    padding: 20px;
+}
+
+.navbar {
+    background-color: #007bff; /* Navbar background color */
+    color: white; /* Navbar text color */
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 20px; /* Padding for navbar */
+    border-radius: 10px; /* Rounded corners for navbar */
+}
+
+.navbar-brand {
+    font-size: 1.5em; /* Brand font size */
+}
+
+.navbar-links button {
+    margin-left: 15px; /* Space between buttons */
+    background-color: transparent; /* Transparent background */
+    color: white; /* Button text color */
+    border: none; /* No border */
+    cursor: pointer; /* Pointer cursor on hover */
+}
+
+.navbar-links button:hover {
+    text-decoration: underline; /* Underline on hover */
+}
+
+.container {
+    display: flex;
+    height: 100vh; /* Full height for the layout */
+}
+
+.sidebar {
+    flex: 0 0 200px; /* Set a fixed width for the sidebar */
+    background-color: #007bff; /* Blue background */
+    color: white; /* White text */
+    padding: 20px;
+    display: flex;
+    flex-direction: column; /* Arrange buttons vertically */
+    border-radius: 10px; /* Rounded corners for sidebar */
+}
+
+.menu-button {
+    margin-bottom: 15px; /* Space between buttons */
+    padding: 15px; /* Increase button size */
+    font-size: 16px; /* Increase font size */
+    background-color: #0056b3; /* Darker blue for buttons */
+    color: white; /* White text for buttons */
+    border: none; /* No border */
+    border-radius: 5px; /* Rounded corners */
+    cursor: pointer; /* Pointer cursor on hover */
+}
+
+.menu-button:hover {
+    background-color: #004494; /* Darker blue on hover */
+}
+
+.content {
+    flex: 2;
+    padding: 20px;
+}
+
+h1 {
+    text-align: center;
+}
+
+h2 {
+    color: #fff; /* White color for headings in sidebar */
+}
+
+ul {
+    list-style-type: none;
+    padding: 0;
+}
+
+li {
+    background: transparent;
+    margin: 10px 0;
+    padding: 10px;
+    color: black; /* White text for links */
+    cursor: pointer;
+}
+
+li:hover {
+    background: rgba(255, 255, 255, 0.2); /* Hover effect */
+}
+
+input {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    margin-bottom: 10px; /* Space between inputs */
+    width: 100%; /* Full width for inputs */
+}
+
+
+/* Button styles */
+.generate-button, .add-button {
+    padding: 10px;
+    font-size: 16px; /* Increase font size */
+    color: white; /* White text */
+    border: none; /* No border */
+    border-radius: 5px; /* Rounded corners */
+    cursor: pointer; /* Pointer cursor on hover */
+}
+
+.generate-button {
+    background-color: #007bff; /* Blue background for Generate Password button */
+}
+
+.add-button {
+    background-color: #007bff; /* Blue background for Add New Password button */
+}
+
+.generate-button:hover, .add-button:hover {
+    background-color: #0056b3; /* Darker blue on hover */
+}
+
+/* Table styles */
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th, td {
+    border: 1px solid #ccc;
+    padding: 10px;
+    text-align: left;
+}
+
+th {
+    background-color: #007bff; /* Header background color */
+    color: white; /* Header text color */
+}
+/* src/Dashboard.css */
+
+body {
+    font-family: 'Ramaraja', sans-serif; /* Set Ramaraja font for all text */
+    background-color: #f4f4f4;
+    margin: 0;
+    padding: 20px;
+}
+
+.navbar {
+    background-color: #007bff; /* Navbar background color */
+    color: white; /* Navbar text color */
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 20px; /* Padding for navbar */
+    border-radius: 10px; /* Rounded corners for navbar */
+}
+
+.navbar-brand {
+    font-size: 1.5em; /* Brand font size */
+}
+
+.navbar-links button {
+    margin-left: 15px; /* Space between buttons */
+    background-color: transparent; /* Transparent background */
+    color: white; /* Button text color */
+    border: none; /* No border */
+    cursor: pointer; /* Pointer cursor on hover */
+}
+
+.navbar-links button:hover {
+    text-decoration: underline; /* Underline on hover */
+}
+
+.container {
+    display: flex;
+    height: 100vh; /* Full height for the layout */
+}
+
+.sidebar {
+    flex: 0 0 200px; /* Set a fixed width for the sidebar */
+    background-color: #007bff; /* Blue background */
+    color: white; /* White text */
+    padding: 20px;
+    display: flex;
+    flex-direction: column; /* Arrange buttons vertically */
+    border-radius: 10px; /* Rounded corners for sidebar */
+}
+
+.menu-button {
+    margin-bottom: 15px; /* Space between buttons */
+    padding: 15px; /* Increase button size */
+    font-size: 16px; /* Increase font size */
+    background-color: #0056b3; /* Darker blue for buttons */
+    color: white; /* White text for buttons */
+    border: none; /* No border */
+    border-radius: 5px; /* Rounded corners */
+    cursor: pointer; /* Pointer cursor on hover */
+}
+
+.menu-button:hover {
+    background-color: #004494; /* Darker blue on hover */
+}
+
+.content {
+    flex: 2;
+    padding: 20px;
+}
+
+h1 {
+    text-align: center;
+    margin: 10px 0; /* Reduce the top and bottom margin */
+    padding: 5px 0; /* Optional: Reduce padding if needed */
+}
+
+h2 {
+    color: black; /* White color for headings in sidebar */
+}
+
+ul {
+    list-style-type: none;
+    padding: 0;
+}
+
+li {
+    background: transparent;
+    margin: 10px 0;
+    padding: 10px;
+    color: white; /* White text for links */
+    cursor: pointer;
+}
+
+li:hover {
+    background: rgba(255, 255, 255, 0.2); /* Hover effect */
+}
+
+input {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    margin-bottom: 10px; /* Space between inputs */
+    width: 100%; /* Full width for inputs */
+}
+
+
+/* Increase font size for the message when no option is selected */
+.no-option-message {
+    font-size: 24px; /* Adjust the font size as needed */
+    font-weight: bold; /* Optional: Make the text bold for emphasis */
+    color:black; /* Optional: Set the text color */
+}
+
+
+/* Increase font size and set color for the added password text */
+.added-password-text {
+    font-size: 24px; /* Adjust the font size as needed */
+    font-weight: bold; /* Optional: Make the text bold for emphasis */
+    color: black; /* Set the text color to black */
+}
+
+
+/* Button styles */
+.generate-button, .add-button {
+    padding: 10px;
+    font-size: 16px; /* Increase font size */
+    color: white; /* White text */
+    border: none; /* No border */
+    border-radius: 5px; /* Rounded corners */
+    cursor: pointer; /* Pointer cursor on hover */
+}
+
+.generate-button {
+    background-color: #007bff; /* Blue background for Generate Password button */
+}
+
+.add-button {
+    background-color: #007bff; /* Blue background for Add New Password button */
+}
+
+.generate-button:hover, .add-button:hover {
+    background-color: #0056b3; /* Darker blue on hover */
+}
+
+/* Table styles */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 19px;
+}
+
+th, td {
+    border: 1px solid #ccc;
+    padding: 10px;
+    text-align: left;
+    font-size: 19px;
+}
+
+th {
+    background-color: #007bff; /* Header background color */
+    color: white; /* Header text color */
+}
+
+/* Container for the password strength information */
+.password-strength {
+    margin-top: 20px;
+}
+
+.password-strength h3 {
+    font-size: 1.2rem;
+    margin-bottom: 10px;
+}
+
+.password-strength p {
+    margin: 5px 0;
+    font-weight: bold;
+}
+
+/* Strength bar container */
+.strength-bar {
+    width: 100%;
+    height: 10px;
+    background-color: #e0e0e0; /* Light gray background */
+    border-radius: 5px;
+    overflow: hidden;
+    margin-top: 10px;
+}
+
+/* Bar levels, dynamically adjusted with inline styles */
+.strength-level {
+    height: 100%;
+    transition: width 0.3s ease-in-out;
+    border-radius: 5px;
+}
+
+/* Colors based on strength levels */
+.strength-weak {
+    background-color: red; /* Red for weak */
+}
+
+.strength-moderate {
+    background-color: #ffb74d; /* Orange for moderate */
+}
+
+.strength-strong {
+    background-color: #4db8ff; /* Light blue for strong */
+}
+
+.strength-very-strong {
+    background-color: purple; /* Purple for very strong */
+}
+
+/* Dark and Light mode styles */
+body.dark-mode {
+    background-color: #1e1e1e;
+    color: #f5f5f5;
+}
+
+body.light-mode {
+    background-color: #ffffff;
+    color: #333333;
+}
+
+/* Navbar styles */
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 20px;
+    background-color: #007bff;
+    color: white;
+}
+
+/* Menu Button */
+.menu-button {
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: white;
+}
+
+/* Dropdown menu styling */
+.dropdown-menu {
+    position: absolute;
+    top: 50px;
+    left: 10px;
+    background-color: #ffffff;
+    color: #333;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    padding: 10px;
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+    width: 200px;
+    z-index: 10;
+}
+
+.dropdown-menu p {
+    margin: 0 0 10px;
+}
+
+.dropdown-menu button {
+    background-color: #007bff;
+    color: #fff;
+    padding: 5px 10px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+/* Theme-specific background colors */
+.dashboard.light {
+    background-color: #f9f9f9;
+    color: #333;
+}
+
+.dashboard.dark {
+    background-color: #1e1e1e;
+    color: #f5f5f5;
+}
+
+/* Additional styling for other elements */
+.container {
+    display: flex;
+}
+
+.sidebar {
+    width: 200px;
+    padding: 20px;
+}
+
+.content {
+    flex: 1;
+    padding: 20px;
+}
+
+.password-field {
+    display: flex;
+    align-items: center;
+}
+
+.toggle-password-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    margin-left: 8px;
+    font-size: 1.2em;
+    color: #333;
+}
+
+.toggle-password-btn:hover {
+    color: #007bff;
+}
+
+.copy-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    font-size: 1em;
+    color: #333;
+}
+
+.copy-button:hover {
+    color: #007bff;
+}
+
+.actions {
+    display: flex;
+    align-items: center;
+}
