@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Joi = require('joi');
 const rateLimit = require('express-rate-limit');
-const { signup, login, logout } = require('../controllers/authController');
+const { signup, login, logout, refreshToken, checkAuth } = require('../controllers/authController');
 const verifyToken = require('../middleware/authenticateToken');
 
 // Rate Limiting for login attempts
@@ -74,7 +74,18 @@ router.post('/login', loginLimiter, async (req, res, next) => {
   }
 });
 
+// Route for refreshing the access token using a valid refresh token
+router.post('/refresh-token', async (req, res, next) => {
+  try {
+    await refreshToken(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/check-auth', verifyToken, checkAuth);
+
 // Route for user logout
-router.get('/logout', verifyToken, logout);
+router.post('/logout', verifyToken, logout);
 
 module.exports = router;

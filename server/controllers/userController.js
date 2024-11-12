@@ -24,9 +24,15 @@ exports.getCredentials = async (req, res, next) => {
 };
 
 // Protected Route for user (Example)
+// userController.js
 exports.protectedRoute = async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Unauthorized access: User is not logged in.' });
+  }
+
   res.json({ message: 'This is a protected route', user: req.user });
 };
+
 
 module.exports = {
   getCredentials: exports.getCredentials,

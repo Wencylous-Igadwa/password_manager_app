@@ -1,8 +1,9 @@
 // src/Dashboard.tsx
 import React, { useState } from 'react';
 import './Dashboard.css';
-import { FaEye, FaEyeSlash ,FaClipboard } from 'react-icons/fa';
+import { FaEye, FaEyeSlash, FaClipboard } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
+import axiosInstance from "../utils/axiosInstance";
 
 interface Props {
     username: string;
@@ -17,11 +18,11 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
     const [newPassword, setNewPassword] = useState<string>('');
     const [selectedContent, setSelectedContent] = useState<'addPassword' | 'recentActivities' | 'availablePasswords' | null>(null);
     const [passwordStrength, setPasswordStrength] = useState<{ score: number; text: string } | null>(null);
-    const [menuOpen, setMenuOpen] = useState(false);  // State to control menu dropdown visibility
-    const [isDarkMode, setIsDarkMode] = useState(false);  // State for dark/light mode
+    const [menuOpen, setMenuOpen] = useState(false);
+    const [isDarkMode, setIsDarkMode] = useState(false);
     const [visiblePasswords, setVisiblePasswords] = useState<{ [index: number]: boolean }>({});
     const navigate = useNavigate();
-  
+
     // Dark/Light mode
     const toggleTheme = () => {
         setIsDarkMode(!isDarkMode);
@@ -35,15 +36,14 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
             .then(() => alert("Username and Password copied to clipboard!"))
             .catch((err) => console.error("Failed to copy text: ", err));
     };
-     
-    // Password visibiity
+
+    // Password visibility
     const togglePasswordVisibility = (index: number) => {
         setVisiblePasswords(prev => ({
             ...prev,
             [index]: !prev[index],
         }));
     };
-
 
     // Function to generate a random password
     const generatePassword = () => {
@@ -52,29 +52,23 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
         const lowercase = "abcdefghijklmnopqrstuvwxyz";
         const numbers = "0123456789";
         const specialChars = "!@#$%^&*()_+[]{}|;:,.<>?";
-        
+
         const allChars = uppercase + lowercase + numbers + specialChars;
-    
-        // Ensure the password contains at least one of each required character type
+
         let password = [
             uppercase[Math.floor(Math.random() * uppercase.length)],
             lowercase[Math.floor(Math.random() * lowercase.length)],
             numbers[Math.floor(Math.random() * numbers.length)],
             specialChars[Math.floor(Math.random() * specialChars.length)]
         ];
-    
-        // Fill the rest of the password length with random characters from allChars
+
         for (let i = password.length; i < length; i++) {
             password.push(allChars[Math.floor(Math.random() * allChars.length)]);
         }
-    
-        // Shuffle the password array to ensure randomness
+
         password = password.sort(() => Math.random() - 0.5);
-    
-        // Set the new password in the state
         setNewPassword(password.join(''));
     };
-    
 
     // Function to add a new password
     const addPassword = () => {
@@ -129,33 +123,41 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
         setSelectedContent(content);
     };
 
-    // Handle logout
-    const handleLogout = () => {
-        // Clear any stored tokens or session data (localStorage, cookies, etc.)
-        localStorage.removeItem('authToken');  // Assuming you're using localStorage for auth token
-        sessionStorage.removeItem('authToken'); // If you're using sessionStorage, clear it
-
-        // Call the onLogout function passed from the parent component
-        onLogout();
-
-        // Redirect to the login page after logging out
-        navigate('/login');
+    const handleLogout = async () => {
+        try {
+            await axiosInstance.post('/auth/logout');  // Server clears the token cookie
+    
+            // Clear remaining tokens and session data on the client side
+            localStorage.removeItem('authToken');
+            sessionStorage.removeItem('authToken');
+            localStorage.removeItem('csrfToken');
+            document.cookie = 'csrfToken=; Max-Age=0; path=/;';  // Remove csrfToken cookie
+    
+            // Call onLogout callback if provided
+            if (typeof onLogout === 'function') {
+                onLogout();
+            }
+            
+            // Redirect to login page
+            setTimeout(() => {
+                navigate('/login');  // Redirect to login page after 5 seconds
+            }, 3000);
+        } catch (error) {
+            console.error('Error during logout:', error);
+        }
     };
 
-return (
-    <div className={`dashboard ${isDarkMode ? 'dark' : 'light'}`}>
+    return (
+        <div className={`dashboard ${isDarkMode ? 'dark' : 'light'}`}>
             <nav className="navbar">
-                {/* Menu Button */}
                 <div className="menu-button" onClick={() => setMenuOpen(!menuOpen)}>
                     ☰
                 </div>
-
                 <div className="navbar-brand">Password Manager</div>
                 <div className="navbar-links">
                     <button onClick={handleLogout}>Logout</button>
                 </div>
 
-                {/* Menu Dropdown */}
                 {menuOpen && (
                     <div className="dropdown-menu">
                         <p><strong>Account:</strong> {username}</p>
@@ -165,15 +167,15 @@ return (
                     </div>
                 )}
             </nav>
-        <h1>Welcome, {username}</h1>
-        <div className="container">
-            <div className="sidebar">
-                <h2>Menu</h2>
-                <button className="menu-button" onClick={() => handleContentSelect('addPassword')}>Add Password</button>
-                <button className="menu-button" onClick={() => handleContentSelect('recentActivities')}>Recent Activities</button>
-                <button className="menu-button" onClick={() => handleContentSelect('availablePasswords')}>Available Passwords</button>
-            </div>
-            <div className="content">
+            <h1>Welcome, {username}</h1>
+            <div className="container">
+                <div className="sidebar">
+                    <h2>Menu</h2>
+                    <button className="menu-button" onClick={() => handleContentSelect('addPassword')}>Add Password</button>
+                    <button className="menu-button" onClick={() => handleContentSelect('recentActivities')}>Recent Activities</button>
+                    <button className="menu-button" onClick={() => handleContentSelect('availablePasswords')}>Available Passwords</button>
+                </div>
+                <div className="content">
                 {selectedContent === 'addPassword' && (
                     <div>
                         <h2>Add Password</h2>
@@ -274,9 +276,9 @@ return (
                 )}
                 {selectedContent === null && <p className="no-option-message">Select an option from the menu.</p>}
             </div>
+            </div>
         </div>
-    </div>
-)}
-
+    );
+};
 
 export default Dashboard;

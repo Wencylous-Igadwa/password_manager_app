@@ -7,9 +7,9 @@ const csrfTokenHandler = (req, res) => {
 
   // Set the CSRF token in a cookie (for the frontend to access)
   res.cookie('XSRF-TOKEN', csrfToken, {
-    httpOnly: false,  // Allows the cookie to be accessible via JavaScript
+    httpOnly: true, // Prevents the cookie from being accessed by JavaScript
     secure: process.env.NODE_ENV === 'production',  // Use secure cookies in production
-    sameSite: 'Lax',  // Mitigate CSRF attacks
+    sameSite: 'Lax',
     maxAge: 3600000, // Cookie expiration time (1 hour)
   });
 
@@ -20,9 +20,9 @@ const csrfTokenHandler = (req, res) => {
 // CSRF middleware configuration to store the token in a cookie
 const csrfProtection = csrf({
   cookie: {
-    httpOnly: true, // Prevents the cookie from being accessed by JavaScript
-    secure: process.env.NODE_ENV === 'production', // Use secure cookies in production
-    sameSite: 'Lax', // Mitigate CSRF attacks
+    httpOnly: true, 
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'Lax', 
   },
 });
 

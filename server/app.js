@@ -23,7 +23,7 @@ app.use(cors({
 app.get('/csrf-token', csrfProtection, csrfTokenHandler);
 
 // Apply CSRF protection and authentication only to protected routes
-app.use('/api', csrfProtection, verifyToken, userRoutes);
+app.use('/account', csrfProtection, verifyToken, userRoutes);
 
 // Authentication routes (e.g., login, registration)
 app.use('/auth', authRoutes);

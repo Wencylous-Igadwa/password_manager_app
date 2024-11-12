@@ -3,6 +3,7 @@ const Joi = require('joi');
 const router = express.Router();
 const userController = require('../controllers/userController');
 const verifyToken = require('../middleware/authenticateToken');
+const { protectedRoute } = require('../controllers/userController');
 
 // Joi schema for validating the 'domain' parameter
 const domainValidationSchema = Joi.object({
@@ -25,7 +26,7 @@ router.post('/get-credentials', verifyToken, async (req, res, next) => {
   }
 });
 
-// Protected route example (No changes needed here)
-router.get('/protected-route', verifyToken, userController.protectedRoute);
+// Protected route - Only accessible if logged in
+router.get('/dashboard', verifyToken, protectedRoute);
 
 module.exports = router;
