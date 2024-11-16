@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { LockOutlined } from "@mui/icons-material";
 import {
   Container,
@@ -10,11 +11,12 @@ import {
   Grid,
   Snackbar,
 } from "@mui/material";
-import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import axiosInstance from "../utils/axiosInstance"; 
+import { GoogleLogin, CredentialResponse } from "@react-oauth/google";
+import axiosInstance from "../utils/axiosInstance";
 import axios from "axios";
 
+// Define types for Google credential response and decoded JWT
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -38,7 +40,7 @@ const Login = () => {
   const handleLogin = async () => {
     setError(null);
     setLoading(true);
-  
+
     const validationError = validateForm();
     if (validationError) {
       setError(validationError);
@@ -47,17 +49,15 @@ const Login = () => {
       setLoading(false);
       return;
     }
-  
+
     try {
-      // Send login request to backend
       const response = await axiosInstance.post("/auth/login", { email, password });
-  
+
       if (response.status === 200) {
-        // Assuming the response contains a token or user data upon successful login
         setSnackbarMessage("Login successful! Redirecting...");
         setOpenSnackbar(true);
         setTimeout(() => {
-          navigate("/dashboard"); // Redirect to the dashboard or home page
+          navigate("/dashboard");
         }, 2000);
       } else {
         setSnackbarMessage("Invalid credentials. Please try again.");
@@ -65,10 +65,12 @@ const Login = () => {
       }
     } catch (error) {
       setLoading(false);
-  
-      if (axios.isAxiosError(error)) { // Use axios.isAxiosError() here
+
+      if (axios.isAxiosError(error)) {
         if (error.response) {
-          setSnackbarMessage(`Error: ${error.response.status} - ${error.response.data?.message || "An error occurred."}`);
+          setSnackbarMessage(
+            `Error: ${error.response.status} - ${error.response.data?.message || "An error occurred."}`
+          );
         } else if (error.request) {
           setSnackbarMessage("Network error. Please try again later.");
         } else {
@@ -83,79 +85,132 @@ const Login = () => {
     }
   };
 
+  const handleGoogleLogin = async (credentialResponse: CredentialResponse) => {
+    try {
+      if (!credentialResponse.credential) {
+        throw new Error("No credential provided in response");
+      }
+  
+      const googleToken = credentialResponse.credential; // The token provided by Google
+  
+      // Send the token to the backend for verification and to receive backend tokens
+      const response = await axiosInstance.post("/auth/login/google", { googleToken });
+  
+      if (response.status === 200) {
+        const { token, refreshToken } = response.data;
+  
+        // Store tokens (e.g., in cookies or local storage)
+        document.cookie = `token=${token}; path=/; max-age=3600`; // 1-hour expiration
+        document.cookie = `refreshToken=${refreshToken}; path=/; max-age=604800`; // 7-day expiration
+  
+        setSnackbarMessage("Google login successful! Redirecting...");
+        setOpenSnackbar(true);
+  
+        setTimeout(() => {
+          navigate("/dashboard"); // Redirect to the dashboard
+        }, 2000);
+      } else {
+        setSnackbarMessage("Google login failed. Please try again.");
+        setOpenSnackbar(true);
+      }
+    } catch (error) {
+      console.error("Google login failed:", error);
+      setSnackbarMessage("Google login failed. Please try again.");
+      setOpenSnackbar(true);
+    }
+  };
+  
+
   return (
-    <>
-      <Container maxWidth="xs">
-        <CssBaseline />
+    <Container component="main" maxWidth="xs">
+      <CssBaseline />
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "100vh", // Ensure the container takes up the full viewport height
+        }}
+      >
+        <Avatar sx={{ m: 1, bgcolor: "primary.main" }}>
+          <LockOutlined />
+        </Avatar>
+        <Typography variant="h5">Login</Typography>
         <Box
           sx={{
-            mt: 20,
+            mt: 2,
+            width: "100%", 
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
+            gap: 2, 
           }}
         >
-          <Avatar sx={{ m: 1, bgcolor: "primary.light" }}>
-            <LockOutlined />
-          </Avatar>
-          <Typography variant="h5">Login</Typography>
-          <Box sx={{ mt: 1 }}>
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              id="email"
-              label="Email Address"
-              name="email"
-              autoFocus
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
+          <TextField
+            margin="normal"
+            required
+            fullWidth
+            id="email"
+            label="Email Address"
+            name="email"
+            autoFocus
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <TextField
+            margin="normal"
+            required
+            fullWidth
+            id="password"
+            name="password"
+            label="Password"
+            type="password"
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+            }}
+          />
 
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              id="password"
-              name="password"
-              label="Password"
-              type="password"
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-              }}
-            />
+          <Button
+            fullWidth
+            variant="contained"
+            sx={{ mt: 2 }}
+            onClick={handleLogin}
+            disabled={loading}
+          >
+            {loading ? "Logging in..." : "Login"}
+          </Button>
 
-            <Button
-              fullWidth
-              variant="contained"
-              sx={{ mt: 3, mb: 2 }}
-              onClick={handleLogin}
-              disabled={loading}
-            >
-              {loading ? "Logging in..." : "Login"}
-            </Button>
+          <GoogleLogin
+            onSuccess={handleGoogleLogin}
+            onError={() => {
+              setSnackbarMessage("Google login failed.");
+              setOpenSnackbar(true);
+            }}
+            useOneTap
+            width="100%"
+          />
 
-            <Grid container justifyContent={"flex-end"}>
-              <Grid item>
-                <Link to="/register">Don't have an account? Register</Link>
-              </Grid>
-              <Grid item>
-                <Link to="/forgot_password">Forgot Your Password?</Link>
-              </Grid>
+          <Grid container justifyContent="center" sx={{ mt: 2 }}>
+            <Grid item>
+              <Link to="/register">Don't have an account? Register</Link>
             </Grid>
-          </Box>
-        </Box>
-      </Container>
+            <Grid item sx={{ ml: 3 }}>
+              <Link to="/forgot_password">Forgot Your Password?</Link>
+            </Grid>
+          </Grid>
 
-      {/* Snackbar for success or error messages */}
+        </Box>
+      </Box>
+
       <Snackbar
         open={openSnackbar}
         autoHideDuration={5000}
         onClose={() => setOpenSnackbar(false)}
         message={snackbarMessage}
       />
-    </>
+    </Container>
   );
 };
 

@@ -4,10 +4,6 @@ import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 
 const baseURL: string = import.meta.env.REACT_APP_BACKEND_URL || 'http://localhost:3000';
 console.log('Base URL:', baseURL);
 
-if (!baseURL) {
-  console.warn("Warning: REACT_APP_BACKEND_URL is not defined. Requests may fail.");
-}
-
 // CSRF Token logic
 let csrfToken: string | undefined = undefined;
 let csrfTokenPromise: Promise<string | undefined> | null = null;

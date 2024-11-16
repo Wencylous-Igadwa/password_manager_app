@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Joi = require('joi');
 const rateLimit = require('express-rate-limit');
-const { signup, login, logout, refreshToken, checkAuth } = require('../controllers/authController');
+const { signup, loginWithEmailPassword, loginWithGoogle, logout, refreshToken, checkAuth } = require('../controllers/authController');
 const verifyToken = require('../middleware/authenticateToken');
 
 // Rate Limiting for login attempts
@@ -29,8 +29,8 @@ const signupSchema = Joi.object({
   }),
 });
 
-// Joi Validation for login inputs
-const loginSchema = Joi.object({
+// Joi Validation for email-password login inputs
+const emailPasswordLoginSchema = Joi.object({
   email: Joi.string().email().required().messages({
     'string.email': 'Please provide a valid email address',
     'any.required': 'Email is required',
@@ -39,15 +39,19 @@ const loginSchema = Joi.object({
     'string.min': 'Password must be at least 6 characters long',
     'any.required': 'Password is required',
   }),
-  googleToken: Joi.string().optional().messages({
+});
+
+// Joi Validation for Google login inputs
+const googleLoginSchema = Joi.object({
+  googleToken: Joi.string().required().messages({
+    'any.required': 'Google token is required',
     'string.base': 'Invalid Google token format',
   }),
 });
 
-// Route for user signup (supports both Google OAuth and email/password)
+// Route for user signup
 router.post('/signup', async (req, res, next) => {
   try {
-    // Validate inputs using Joi
     const { error } = signupSchema.validate(req.body);
     if (error) {
       return res.status(400).json({ errors: error.details });
@@ -59,22 +63,35 @@ router.post('/signup', async (req, res, next) => {
   }
 });
 
-// Route for user login (supports both Google OAuth and email/password)
+// Route for email-password login
 router.post('/login', loginLimiter, async (req, res, next) => {
   try {
-    // Validate inputs using Joi
-    const { error } = loginSchema.validate(req.body);
+    const { error } = emailPasswordLoginSchema.validate(req.body);
     if (error) {
       return res.status(400).json({ errors: error.details });
     }
 
-    await login(req, res, next);
+    await loginWithEmailPassword(req, res);
   } catch (err) {
     next(err);
   }
 });
 
-// Route for refreshing the access token using a valid refresh token
+// Route for Google login
+router.post('/login/google', async (req, res, next) => {
+  try {
+    const { error } = googleLoginSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ errors: error.details });
+    }
+
+    await loginWithGoogle(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Route for refreshing the access token
 router.post('/refresh-token', async (req, res, next) => {
   try {
     await refreshToken(req, res);
@@ -83,6 +100,7 @@ router.post('/refresh-token', async (req, res, next) => {
   }
 });
 
+// Route for checking user authentication
 router.get('/check-auth', verifyToken, checkAuth);
 
 // Route for user logout
