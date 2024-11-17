@@ -266,6 +266,7 @@ input {
     font-size: 16px; /* Increase font size */
     color: white; /* White text */
     border: none; /* No border */
+    gap: 8px;
     border-radius: 5px; /* Rounded corners */
     cursor: pointer; /* Pointer cursor on hover */
 }
@@ -347,7 +348,7 @@ th {
 }
 
 .strength-very-strong {
-    background-color: purple; /* Purple for very strong */
+    background-color: #4caf50; /* Green color */
 }
 
 /* Dark and Light mode styles */
@@ -466,4 +467,72 @@ body.light-mode {
 .actions {
     display: flex;
     align-items: center;
+}
+
+.button-group {
+    display: flex;
+    gap: 10px; /* Adjust the gap value as needed */
+    margin-top: 10px; /* Optional: Adds some space above the button group */
+
+}
+
+.import-btn,
+.export-btn {
+    font-family: Arial, sans-serif;
+    background-color: #4CAF50;
+    color: white;
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    width: 100px; /* Set a fixed width to make buttons shorter */
+    text-align: center;
+}
+
+.import-btn:hover,
+.export-btn:hover {
+    background-color: #45a049;
+}
+
+.recently-added {
+    color: black;
+    font-weight: bold; /* Optional: makes "Recently Added" stand out */
+}
+.activity-highlight {
+    color: black;
+    font-weight: bold; /* Optional for emphasis */
+}
+
+.button-container {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 10px; /* Adjust this as needed */
+}
+
+/* Optional: Adjust button styling to match the rest of your design */
+.add-button {
+    padding: 8px 16px;
+    font-size: 14px;
+    /* Add other button styling here */
+}
+
+.actions-group {
+    display: flex;
+    gap: 8px; /* Adjust spacing between buttons */
+}
+
+.actions-group button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px; /* Space between icon and text */
+}
+
+.no-option-image {
+    max-width: 100%; 
+    height: auto;
+    margin-top: 20px;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
 }
