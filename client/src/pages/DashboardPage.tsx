@@ -1,10 +1,8 @@
-// src/Dashboard.tsx
 import React, { useState } from 'react';
 import './Dashboard.css';
 import Papa from 'papaparse';
 import { useNavigate } from 'react-router-dom';
-import { FaEye, FaEyeSlash ,FaClipboard } from 'react-icons/fa';
-import { FaEdit, FaTrash, FaSave } from 'react-icons/fa';
+import { FaEye, FaEyeSlash ,FaClipboard, FaEdit, FaTrash, FaSave } from 'react-icons/fa';
 import dash1 from '/src/assets/images/dash1.png';
 import axiosInstance from "../utils/axiosInstance";
 
@@ -13,7 +11,8 @@ interface Props {
     onLogout: () => void;
 }
 
-interface PasswordEntry {
+ // Define the structure of a single password entry
+ interface PasswordEntry {
     url: string;
     username: string;
     password: string;
@@ -95,31 +94,30 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
     };
 
     // Update password in the database
-const updatePasswordInDatabase = async (passwordEntry: PasswordEntry) => {
-    try {
-        await fetch('/api/update-password', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(passwordEntry),
-        });
-    } catch (error) {
-        console.error('Failed to update password:', error);
-    }
-};
+    const updatePasswordInDatabase = async (passwordEntry: PasswordEntry) => {
+        try {
+            await fetch('/api/update-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(passwordEntry),
+            });
+        } catch (error) {
+            console.error('Failed to update password:', error);
+        }
+    };
 
-// Delete password from the database
-const deletePasswordFromDatabase = async (passwordEntry: PasswordEntry) => {
-    try {
-        await fetch('/api/delete-password', {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(passwordEntry),
-        });
-    } catch (error) {
-        console.error('Failed to delete password:', error);
-    }
-};
-
+    // Delete password from the database
+    const deletePasswordFromDatabase = async (passwordEntry: PasswordEntry) => {
+        try {
+            await fetch('/api/delete-password', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(passwordEntry),
+            });
+        } catch (error) {
+            console.error('Failed to delete password:', error);
+        }
+    };
 
     // Dark/Light mode
     const toggleTheme = () => {
@@ -143,85 +141,84 @@ const deletePasswordFromDatabase = async (passwordEntry: PasswordEntry) => {
         }));
     };
 
-
-     // Handle CSV import
-     const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    // Handle CSV import
+    const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
             Papa.parse(file, {
                 header: true,
-                complete: (result: { data: any[]; }) => {
-                    const importedPasswords: PasswordEntry[] = result.data.map((entry: any) => ({
+                complete: (result: { data: Record<string, string>[] }) => {
+                    const importedPasswords: PasswordEntry[] = result.data.map((entry: Record<string, string>) => ({
                         url: entry.url || '',
                         username: entry.username || '',
                         password: entry.password || '',
                     }));
                     setPasswords([...passwords, ...importedPasswords]);
                     setRecentActivities([...recentActivities, `Imported ${importedPasswords.length} passwords from CSV`]);
-      // Store imported passwords in database
-      savePasswordsToDatabase(importedPasswords);
-    },
-    error: (error: any) => {
-        console.error('Error reading CSV file:', error);
-        alert('Failed to import passwords. Check the file format.');
-    },
-});
-}
-};
 
-// Function to save passwords to the database
-const savePasswordsToDatabase = async (passwordEntries: PasswordEntry[]) => {
-    try {
-        const response = await fetch('/api/save-passwords', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ passwords: passwordEntries }),
-        });
-        if (!response.ok) {
-            console.error('Failed to save passwords to the database');
+                    // Store imported passwords in the database
+                    savePasswordsToDatabase(importedPasswords);
+                },
+                error: (error: Error) => {
+                    console.error('Error reading CSV file:', error.message);
+                    alert('Failed to import passwords. Check the file format.');
+                },
+            });
         }
-    } catch (error) {
-        console.error('Error saving to database:', error);
-    }
-};
+    };
 
-const exportPasswordsToCSV = async () => {
-    try {
-        // Fetch passwords from the database if needed
-        const response = await fetch('/api/get-passwords');
-        if (!response.ok) {
-            console.error('Failed to fetch passwords for export');
-            return;
+
+    // Function to save passwords to the database
+    const savePasswordsToDatabase = async (passwordEntries: PasswordEntry[]) => {
+        try {
+            const response = await fetch('/api/save-passwords', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ passwords: passwordEntries }),
+            });
+            if (!response.ok) {
+                console.error('Failed to save passwords to the database');
+            }
+        } catch (error) {
+            console.error('Error saving to database:', error);
         }
-        
-        const passwordsToExport: PasswordEntry[] = await response.json();
-        
-        // Convert password data to CSV format
-        const csvData = Papa.unparse(passwordsToExport);
-        
-        // Create a Blob from the CSV data
-        const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        
-        // Create a link to download the CSV file
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = 'passwords_export.csv';
-        
-        // Programmatically click the link to trigger download
-        link.click();
-        
-        // Cleanup URL object
-        URL.revokeObjectURL(url);
-        
-        // Log recent activity
-        setRecentActivities([...recentActivities, 'Exported passwords to CSV']);
-    } catch (error) {
-        console.error('Error exporting passwords:', error);
-    }
-};
+    };
 
-
+    const exportPasswordsToCSV = async () => {
+        try {
+            // Fetch passwords from the database if needed
+            const response = await fetch('/api/get-passwords');
+            if (!response.ok) {
+                console.error('Failed to fetch passwords for export');
+                return;
+            }
+            
+            const passwordsToExport: PasswordEntry[] = await response.json();
+            
+            // Convert password data to CSV format
+            const csvData = Papa.unparse(passwordsToExport);
+            
+            // Create a Blob from the CSV data
+            const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            
+            // Create a link to download the CSV file
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'passwords_export.csv';
+            
+            // Programmatically click the link to trigger download
+            link.click();
+            
+            // Cleanup URL object
+            URL.revokeObjectURL(url);
+            
+            // Log recent activity
+            setRecentActivities([...recentActivities, 'Exported passwords to CSV']);
+        } catch (error) {
+            console.error('Error exporting passwords:', error);
+        }
+    };
 
     // Function to generate a random password
     const generatePassword = () => {
@@ -253,32 +250,28 @@ const exportPasswordsToCSV = async () => {
         setNewPassword(password.join(''));
     };
 
-    
-    
-
     // Function to add a new password
     const addPassword = () => {
         if (newUrl && newUsername && newPassword) {
             try {
                 // Check if newUrl is a valid URL
                 new URL(newUrl);
-    
+
                 const newEntry = { url: newUrl, username: newUsername, password: newPassword };
                 setPasswords([...passwords, newEntry]);
                 setRecentActivities([...recentActivities, `Added password for ${newUsername} at ${newUrl}`]);
-    
+
                 // Clear the fields after adding
                 setNewUrl('');
                 setNewUsername('');
                 setNewPassword('');
-            } catch (error) {
+            } catch {
                 alert('Please enter a valid URL.');
             }
         } else {
             alert('Please fill in all fields.');
         }
     };
-    
 
     // Password strength analyzer
     const analyzePasswordStrength = (password: string) => {
@@ -321,57 +314,65 @@ const exportPasswordsToCSV = async () => {
         setSelectedContent(content);
     };
 
-    // src/Dashboard.tsx
 
-return (
-    <div className={`dashboard ${isDarkMode ? 'dark' : 'light'}`}>
+    return (
+        <div className={`dashboard ${isDarkMode ? 'dark' : 'light'}`}>
+            {/* Navbar */}
             <nav className="navbar">
                 {/* Menu Button */}
                 <div className="menu-button" onClick={() => setMenuOpen(!menuOpen)}>
                     ☰
                 </div>
-
                 <div className="navbar-brand">Password Manager</div>
                 <div className="navbar-links">
                     <button onClick={handleLogout}>Logout</button>
                 </div>
-
+    
                 {/* Menu Dropdown */}
                 {menuOpen && (
                     <div className="dropdown-menu">
-                        <p><strong>Account:</strong> {username}</p>
+                        <p>
+                            <strong>Account:</strong> {username}
+                        </p>
                         <button onClick={toggleTheme}>
                             {isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
                         </button>
                     </div>
                 )}
             </nav>
-        <h1>Welcome {username}</h1>
-        <div className="container">
-            <div className="sidebar">
-                <h2>Menu</h2>
-                <button className="menu-button" onClick={() => handleContentSelect('addPassword')}>Add Password</button>
-                <button className="menu-button" onClick={() => handleContentSelect('recentActivities')}>Recent Activities</button>
-                <button className="menu-button" onClick={() => handleContentSelect('availablePasswords')}>Available Passwords</button>
-            </div>
-            <div className="content">
-                {selectedContent === 'addPassword' && (
-                    <div>
-                        <h2>Add Password</h2>
-                        <div className="form-group">
-                        <input
-                          type="url"
-                          value={newUrl}
-                          onChange={(e) => setNewUrl(e.target.value)}
-                          placeholder="Enter site URL"
-                          required                            />
-                            <input
-                                type="text"
-                                value={newUsername}
-                                onChange={(e) => setNewUsername(e.target.value)}
-                                placeholder="Enter username"
-                            />
-                             <div className="password-input-group">
+    
+            <h1>Welcome {username}</h1>
+    
+            {/* Main Container */}
+            <div className="container">
+                {/* Sidebar */}
+                <div className="sidebar">
+                    <h2>Menu</h2>
+                    <button className="menu-button" onClick={() => handleContentSelect('addPassword')}>Add Password</button>
+                    <button className="menu-button" onClick={() => handleContentSelect('recentActivities')}>Recent Activities</button>
+                    <button className="menu-button" onClick={() => handleContentSelect('availablePasswords')}>Available Passwords</button>
+                </div>
+    
+                {/* Content Area */}
+                <div className="content">
+                    {selectedContent === 'addPassword' && (
+                        <div>
+                            <h2>Add Password</h2>
+                            <div className="form-group">
+                                <input
+                                    type="url"
+                                    value={newUrl}
+                                    onChange={(e) => setNewUrl(e.target.value)}
+                                    placeholder="Enter site URL"
+                                    required
+                                />
+                                <input
+                                    type="text"
+                                    value={newUsername}
+                                    onChange={(e) => setNewUsername(e.target.value)}
+                                    placeholder="Enter username"
+                                />
+                                <div className="password-input-group">
                                     <input
                                         type="text"
                                         value={newPassword}
@@ -382,155 +383,170 @@ return (
                                         Generate Password
                                     </button>
                                 </div>
-                                <div className='button-container'>
-                                <button className="add-button" onClick={addPassword}>Add New Password</button>
-                            </div>
-                            </div>
-                        </div>
-                    )}
-              {selectedContent === 'recentActivities' && (
-                       <div>
-                           <h2>Recent Activities</h2>
-                               <ul>
-                                   {recentActivities.map((activity, index) => (
-                                      <li key={index}>
-                                          {/* Style the entire entry if it matches "Added password for ..." */}
-                                          {activity.startsWith("Added password for") ? (
-                                          <span className="activity-highlight">{activity}</span>
-                                             ) : (
-                                                    activity
-                                             )}
-                                    </li>
-                               ))}
-                                </ul>
-                        </div>
-)}
-
-
-                {selectedContent === 'availablePasswords' && (
-                    <div>
-                        <h2>Available Passwords</h2>
-                        <div className="button-group">
-            {/* Import Button */}
-            <input type="file" accept=".csv" onChange={handleFileUpload} style={{ display: 'none' }} id="file-input" />
-            <label htmlFor="file-input" className="import-btn">Import Passwords</label>
-            
-            {/* Export Button */}
-            <button className="export-btn" onClick={exportPasswordsToCSV}>Export Passwords</button>
-        </div>
-        <table>
-    <thead>
-        <tr>
-            <th>URL</th>
-            <th>Username</th>
-            <th>Password</th>
-            <th>Actions</th>
-        </tr>
-    </thead>
-    <tbody>
-        {passwords.map((entry, index) => (
-            <tr key={index}>
-                <td>
-                    {editIndex === index ? (
-                        <input
-                            type="text"
-                            value={editedEntry?.url || ''}
-                            onChange={(e) => handleEditedFieldChange('url', e.target.value)}
-                        />
-                    ) : (
-                        entry.url
-                    )}
-                </td>
-                <td>
-                    {editIndex === index ? (
-                        <input
-                            type="text"
-                            value={editedEntry?.username || ''}
-                            onChange={(e) => handleEditedFieldChange('username', e.target.value)}
-                        />
-                    ) : (
-                        entry.username
-                    )}
-                </td>
-                <td>
-                    {editIndex === index ? (
-                        <input
-                            type="text"
-                            value={editedEntry?.password || ''}
-                            onChange={(e) => handleEditedFieldChange('password', e.target.value)}
-                        />
-                    ) : (
-                        <span
-                            className="password-field"
-                            onClick={() => handlePasswordClick(entry.password)} // Attach here
-                        >
-                            {visiblePasswords[index] ? entry.password : '•'.repeat(entry.password.length)}
-                            <button onClick={(e) => { 
-                                e.stopPropagation(); // Prevent triggering handlePasswordClick
-                                togglePasswordVisibility(index);
-                            }}>
-                                {visiblePasswords[index] ? <FaEyeSlash /> : <FaEye />}
-                            </button>
-                        </span>
-                    )}
-                </td>
-                <td>
-                    <div className="actions-group">
-                        {editIndex === index ? (
-                            <>
-                                <button onClick={() => saveEdit(index)}>
-                                    <FaSave /> Save
-                                </button>
-                                <button onClick={cancelEdit}>Cancel</button>
-                            </>
-                        ) : (
-                            <>
-                                <button onClick={() => copyCredentialsToClipboard(entry.username, entry.password)}>
-                                    <FaClipboard /> Copy
-                                </button>
-                                <button onClick={() => handleEdit(index)}>
-                                    <FaEdit /> Edit
-                                </button>
-                                <button onClick={() => deletePassword(index)}>
-                                    <FaTrash /> Delete
-                                </button>
-                            </>
-                        )}
-                    </div>
-                </td>
-            </tr>
-        ))}
-    </tbody>
-</table>
-
-
-
-                        {/* Password strength display only appears in availablePasswords section */}
-                        {passwordStrength && (
-                            <div className="password-strength">
-                                <h3>Password Strength</h3>
-                                <p>Score: {passwordStrength.score}/5</p>
-                                <p>Strength: {passwordStrength.text}</p>
-                                <div className="strength-bar">
-                                    <div
-                                        className={`strength-level ${passwordStrength.text === 'Very Strong' ? 'strength-very-strong' : `strength-${passwordStrength.text.toLowerCase()}`}`}
-                                        style={{ width: `${(passwordStrength.score / 5) * 100}%` }}
-                                    />
+                                <div className="button-container">
+                                    <button className="add-button" onClick={addPassword}>Add New Password</button>
                                 </div>
                             </div>
-                        )}
-                    </div>
-                )}
-                {selectedContent === null && (
-                    <div className="no-option-message">
-                        <p>Select an option from the menu.</p>
-                        <img src={dash1} className="no-option-image" />
-                     </div>
-                )}            
+                        </div>
+                    )}
+    
+                    {selectedContent === 'recentActivities' && (
+                        <div>
+                            <h2>Recent Activities</h2>
+                            <ul>
+                                {recentActivities.map((activity, index) => (
+                                    <li key={index}>
+                                        {activity.startsWith("Added password for") ? (
+                                            <span className="activity-highlight">{activity}</span>
+                                        ) : (
+                                            activity
+                                        )}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+    
+                    {selectedContent === 'availablePasswords' && (
+                        <div>
+                            <h2>Available Passwords</h2>
+                            <div className="button-group">
+                                {/* Import Button */}
+                                <input type="file" accept=".csv" onChange={handleFileUpload} style={{ display: 'none' }} id="file-input" />
+                                <label htmlFor="file-input" className="import-btn">Import Passwords</label>
+    
+                                {/* Export Button */}
+                                <button className="export-btn" onClick={exportPasswordsToCSV}>Export Passwords</button>
+                            </div>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>URL</th>
+                                        <th>Username</th>
+                                        <th>Password</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {passwords.map((entry, index) => (
+                                        <tr key={index}>
+                                            <td>
+                                                {editIndex === index ? (
+                                                    <input
+                                                        type="text"
+                                                        value={editedEntry?.url || ''}
+                                                        onChange={(e) => handleEditedFieldChange('url', e.target.value)}
+                                                        aria-label="Edit URL"
+                                                    />
+                                                ) : (
+                                                    entry.url
+                                                )}
+                                            </td>
+                                            <td>
+                                                {editIndex === index ? (
+                                                    <input
+                                                        type="text"
+                                                        value={editedEntry?.username || ''}
+                                                        onChange={(e) => handleEditedFieldChange('username', e.target.value)}
+                                                        aria-label="Edit Username"
+                                                    />
+                                                ) : (
+                                                    entry.username
+                                                )}
+                                            </td>
+                                            <td>
+                                                {editIndex === index ? (
+                                                    <input
+                                                        type="text"
+                                                        value={editedEntry?.password || ''}
+                                                        onChange={(e) => handleEditedFieldChange('password', e.target.value)}
+                                                        aria-label="Edit Password"
+                                                    />
+                                                ) : (
+                                                    <span
+                                                        className="password-field"
+                                                        onClick={() => handlePasswordClick(entry.password)}
+                                                    >
+                                                        {visiblePasswords[index] ? entry.password : '•'.repeat(entry.password.length)}
+                                                        <button
+                                                            className="toggle-visibility-btn"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                togglePasswordVisibility(index);
+                                                            }}
+                                                            aria-label={
+                                                                visiblePasswords[index]
+                                                                    ? "Hide password"
+                                                                    : "Show password"
+                                                            }
+                                                        >
+                                                            {visiblePasswords[index] ? <FaEyeSlash /> : <FaEye />}
+                                                        </button>
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td>
+                                                <div className="actions-group">
+                                                    {editIndex === index ? (
+                                                        <>
+                                                            <button onClick={() => saveEdit(index)} aria-label="Save Edit">
+                                                                <FaSave /> Save
+                                                            </button>
+                                                            <button onClick={cancelEdit} aria-label="Cancel Edit">Cancel</button>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <button
+                                                                onClick={() =>
+                                                                    copyCredentialsToClipboard(entry.username, entry.password)
+                                                                }
+                                                                aria-label="Copy credentials to clipboard"
+                                                            >
+                                                                <FaClipboard /> Copy
+                                                            </button>
+                                                            <button onClick={() => handleEdit(index)} aria-label="Edit Entry">
+                                                                <FaEdit /> Edit
+                                                            </button>
+                                                            <button
+                                                                onClick={() => deletePassword(index)}
+                                                                aria-label="Delete Entry"
+                                                            >
+                                                                <FaTrash /> Delete
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+
+                            {passwordStrength && (
+                                <div className="password-strength">
+                                    <h3>Password Strength</h3>
+                                    <p>Score: {passwordStrength.score}/5</p>
+                                    <p>Strength: {passwordStrength.text}</p>
+                                    <div className="strength-bar">
+                                        <div
+                                            className={`strength-level ${passwordStrength.text === 'Very Strong' ? 'strength-very-strong' : `strength-${passwordStrength.text.toLowerCase()}`}`}
+                                            style={{ width: `${(passwordStrength.score / 5) * 100}%` }}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+    
+                    {selectedContent === null && (
+                        <div className="no-option-message">
+                            <p>Select an option from the menu.</p>
+                            <img src={dash1} className="no-option-image" alt="dash1"/>
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
-    </div>
-)}
-
-
+    )};
+    
 export default Dashboard;
