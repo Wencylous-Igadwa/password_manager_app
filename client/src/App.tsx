@@ -28,6 +28,7 @@ const App: React.FC = () => {
                     <Route path="/login" element={<LoginPage />} />
                     <Route path="/register" element={<Register />} />
                     <Route path="/forgot_password" element={<ForgotPasswordPage />} />
+
                     
                     {/* Wrap Dashboard route with PrivateRoute */}
                     <Route 

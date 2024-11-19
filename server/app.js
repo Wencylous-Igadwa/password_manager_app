@@ -15,7 +15,7 @@ app.use(cookieParser());
 
 // Configure CORS to allow requests from the frontend with credentials
 app.use(cors({
-  origin: [process.env.FRONTEND_URL, 'https://accounts.google.com'],  // Allow frontend and Google
+  origin: [process.env.FRONTEND_URL, 'https://accounts.google.com', process.env.REDIRECT_URI],  // Allow frontend and Google
   credentials: true,   // Allow cookies to be sent in cross-origin requests
 }));
 

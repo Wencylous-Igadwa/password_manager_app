@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Joi = require('joi');
 const rateLimit = require('express-rate-limit');
-const { signup, loginWithEmailPassword, loginWithGoogle, logout, refreshToken, checkAuth } = require('../controllers/authController');
+const { signup, loginWithEmailPassword, loginWithGoogle, logout, refreshToken, checkAuth, requestPasswordReset, verifyResetToken, resetPassword } = require('../controllers/authController');
 const verifyToken = require('../middleware/authenticateToken');
 
 // Rate Limiting for login attempts
@@ -102,6 +102,18 @@ router.post('/refresh-token', async (req, res, next) => {
 
 // Route for checking user authentication
 router.get('/check-auth', verifyToken, checkAuth);
+
+// Password Reset Routes
+const passwordResetLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5, // Limit to 3 requests per IP per window
+  message: {
+    error: 'Too many password reset requests. Please try again later.',
+  },
+});
+router.post('/password-reset', passwordResetLimiter, requestPasswordReset);
+router.get('/reset-password/:token', verifyResetToken);  // Verify Token
+router.post('/reset-password/:token', resetPassword);  // Reset Password
 
 // Route for user logout
 router.post('/logout', verifyToken, logout);

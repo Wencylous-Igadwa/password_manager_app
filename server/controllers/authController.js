@@ -6,6 +6,10 @@ require('dotenv').config();
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const JWT_SECRET = process.env.JWT_SECRET;
 const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET;
+const { sendRecoveryEmail } = require('../services/sendRecoveryEmail');
+const { validationResult } = require('express-validator');
+const EMAIL_JWT_EXPIRATION = '1h';
+const frontendUrl = process.env.FRONTEND_URL;
 
 // In-memory storage for refresh tokens
 let refreshTokens = [];
@@ -268,6 +272,100 @@ exports.checkAuth = (req, res) => {
     return res.status(200).json({ message: 'User is authenticated' });
   }
   return res.status(401).json({ error: 'Unauthorized' });
+};
+
+// Password Reset
+exports.requestPasswordReset = async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ message: 'Email is required' });
+  }
+
+  try {
+    // Find the user by email
+    console.log('Querying for user with email:', email);
+    const user = await User.findOne({ where: { email } });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Check if the user signed in with Google (google_oauth_id is not null)
+    if (user.google_oauth_id) {
+      return res.status(400).json({ message: 'Password reset is not available for Google accounts. Please sign in with Google.' });
+    }
+
+    // Generate a password reset token using the UUID `id`
+    const resetToken = jwt.sign({ id: user.id }, JWT_SECRET, {
+      expiresIn: EMAIL_JWT_EXPIRATION,
+    });
+
+    // Construct the reset link
+    const resetLink = `${frontendUrl}/forgot_password/${resetToken}`;
+    console.log(`Generated reset link: ${resetLink}`);
+
+    // Send the recovery email
+    try {
+      await sendRecoveryEmail(email, resetLink);
+      console.log(`Password reset email sent to: ${email}`);
+    } catch (emailError) {
+      console.error('Error sending password reset email:', emailError);
+      return res.status(500).json({ message: 'Failed to send password reset email. Please try again later.' });
+    }
+
+    // Respond with success
+    res.status(200).json({ message: 'Password reset link has been sent to your email' });
+  } catch (error) {
+    console.error('Error during password reset request:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+exports.verifyResetToken = async (req, res) => {
+    const { token } = req.params;
+
+    try {
+        // Verify the reset token
+        const decoded = jwt.verify(token, JWT_SECRET);
+
+        // Optionally: Render a form for the user to enter a new password
+        res.status(200).json({ message: 'Token is valid', data: decoded });
+    } catch (error) {
+        res.status(400).json({ message: 'Invalid or expired token' });
+    }
+};
+
+// Update Password 
+exports.resetPassword = async (req, res) => {
+    const { token } = req.params;
+    const { newPassword } = req.body;
+
+    try {
+        // Verify the reset token
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const userId = decoded.id;
+
+        // Find user in the database
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(400).json({ message: 'User not found' });
+        }
+
+        // Validate the new password
+        if (newPassword.length < 8) {
+            return res.status(400).json({ message: 'Password must be at least 8 characters long' });
+        }
+
+        const hashedPassword = await argon2.hash(newPassword);
+
+        // Update the user's password
+        user.password = hashedPassword;
+        await user.save();
+
+        res.status(200).json({ message: 'Password reset successful' });
+    } catch (error) {
+        res.status(400).json({ message: 'Invalid or expired token' });
+    }
 };
 
 // Logout endpoint
