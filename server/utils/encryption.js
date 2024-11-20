@@ -1,24 +1,22 @@
 const crypto = require('crypto');
 
-const encrypt = (text, masterPassword) => {
-  const salt = crypto.randomBytes(16);
-  const key = crypto.scryptSync(masterPassword, salt, 32);
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+// Use a 32-byte secret key for AES-256-CBC
+const SECRET_KEY = crypto.randomBytes(32); 
+const ALGORITHM = 'aes-256-cbc';
 
-  const encrypted = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
-  const tag = cipher.getAuthTag();
-
-  return { content: encrypted.toString('hex'), iv: iv.toString('hex'), tag: tag.toString('hex'), salt: salt.toString('hex') };
+exports.encryptPassword = (password) => {
+    // Use a 16-byte IV for AES-256-CBC
+    const iv = crypto.randomBytes(16);  // AES block size is 16 bytes
+    const cipher = crypto.createCipheriv(ALGORITHM, SECRET_KEY, iv);
+    let encrypted = cipher.update(password, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    return { encryptedPassword: encrypted, iv: iv.toString('hex') };  // Return IV as hex string
 };
 
-const decrypt = (encryptedData, masterPassword) => {
-  const { content, iv, tag, salt } = encryptedData;
-  const key = crypto.scryptSync(masterPassword, Buffer.from(salt, 'hex'), 32);
-  const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'hex'));
-  decipher.setAuthTag(Buffer.from(tag, 'hex'));
-
-  return decipher.update(content, 'hex', 'utf8') + decipher.final('utf8');
+exports.decryptPassword = (encryptedPassword, iv) => {
+    // Convert the IV from hex string to Buffer
+    const decipher = crypto.createDecipheriv(ALGORITHM, SECRET_KEY, Buffer.from(iv, 'hex'));
+    let decrypted = decipher.update(encryptedPassword, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
 };
-
-module.exports = { encrypt, decrypt };

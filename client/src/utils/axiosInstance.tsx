@@ -138,4 +138,4 @@ axiosInstance.interceptors.response.use(
 );
 
 export default axiosInstance;
-export { getCsrfToken, refreshAuthToken, getAuthToken, isTokenExpired };
+export { getCsrfToken, refreshAuthToken, getAuthToken, isTokenExpired, getTokensIfNeeded};

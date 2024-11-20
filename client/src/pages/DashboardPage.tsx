@@ -1,3 +1,4 @@
+ 
 import React, { useState } from 'react';
 import './Dashboard.css';
 import Papa from 'papaparse';
@@ -5,6 +6,8 @@ import { useNavigate } from 'react-router-dom';
 import { FaEye, FaEyeSlash ,FaClipboard, FaEdit, FaTrash, FaSave } from 'react-icons/fa';
 import dash1 from '/src/assets/images/dash1.png';
 import axiosInstance from "../utils/axiosInstance";
+
+import { getTokensIfNeeded } from "../utils/axiosInstance";
 
 interface Props {
     username: string;
@@ -32,7 +35,8 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
     const [menuOpen, setMenuOpen] = useState(false);  // State to control menu dropdown visibility
     const [isDarkMode, setIsDarkMode] = useState(false);  // State for dark/light mode
     const [visiblePasswords, setVisiblePasswords] = useState<{ [index: number]: boolean }>({});
-  
+    const [importing, setImporting] = useState(false);
+    const [, setError] = useState<string | null>(null);
     const handleLogout = async () => {
         try {
             await axiosInstance.post('/auth/logout');  // Server clears the token cookie
@@ -50,7 +54,7 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
             
             // Redirect to login page
             setTimeout(() => {
-                navigate('/login');  // Redirect to login page after 5 seconds
+                navigate('/login');  // Redirect to login page after 3 seconds
             }, 3000);
         } catch (error) {
             console.error('Error during logout:', error);
@@ -96,11 +100,7 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
     // Update password in the database
     const updatePasswordInDatabase = async (passwordEntry: PasswordEntry) => {
         try {
-            await fetch('/api/update-password', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(passwordEntry),
-            });
+            await axiosInstance.post('/account/update-password', passwordEntry);
         } catch (error) {
             console.error('Failed to update password:', error);
         }
@@ -109,10 +109,8 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
     // Delete password from the database
     const deletePasswordFromDatabase = async (passwordEntry: PasswordEntry) => {
         try {
-            await fetch('/api/delete-password', {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(passwordEntry),
+            await axiosInstance.delete('/account/delete-password', {
+                data: passwordEntry,
             });
         } catch (error) {
             console.error('Failed to delete password:', error);
@@ -141,79 +139,70 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
         }));
     };
 
-    // Handle CSV import
-    const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
-            Papa.parse(file, {
-                header: true,
-                complete: (result: { data: Record<string, string>[] }) => {
-                    const importedPasswords: PasswordEntry[] = result.data.map((entry: Record<string, string>) => ({
-                        url: entry.url || '',
-                        username: entry.username || '',
-                        password: entry.password || '',
-                    }));
-                    setPasswords([...passwords, ...importedPasswords]);
-                    setRecentActivities([...recentActivities, `Imported ${importedPasswords.length} passwords from CSV`]);
-
-                    // Store imported passwords in the database
-                    savePasswordsToDatabase(importedPasswords);
-                },
-                error: (error: Error) => {
-                    console.error('Error reading CSV file:', error.message);
-                    alert('Failed to import passwords. Check the file format.');
-                },
-            });
-        }
-    };
-
-
-    // Function to save passwords to the database
-    const savePasswordsToDatabase = async (passwordEntries: PasswordEntry[]) => {
-        try {
-            const response = await fetch('/api/save-passwords', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ passwords: passwordEntries }),
-            });
-            if (!response.ok) {
-                console.error('Failed to save passwords to the database');
+            const formData = new FormData();
+            formData.append('csvFile', file);
+    
+            setImporting(true);
+            setError(null);
+    
+            try {
+                // Get the CSRF token (it should already be available in your app)
+                const { csrfToken } = await getTokensIfNeeded();
+    
+                const response = await axiosInstance.post('/account/import-passwords', formData, {
+                    headers: {
+                        'Content-Type': 'multipart/form-data', // Form data content type
+                        'X-CSRF-Token': csrfToken, // Include CSRF token in headers
+                    },
+                });
+    
+                if (response.status === 200) {
+                    alert('Passwords imported successfully!');
+                }
+            } catch (err) {
+                console.error('Error importing passwords:', err);
+                setError('Failed to import passwords. Please check the file format.');
+            } finally {
+                setImporting(false);
             }
-        } catch (error) {
-            console.error('Error saving to database:', error);
         }
     };
+    
 
+    // Function to export passwords to CSV
     const exportPasswordsToCSV = async () => {
         try {
             // Fetch passwords from the database if needed
-            const response = await fetch('/api/get-passwords');
-            if (!response.ok) {
+            const response = await axiosInstance.get('/account/export-passwords');
+            if (response.status !== 200) {
                 console.error('Failed to fetch passwords for export');
                 return;
             }
-            
-            const passwordsToExport: PasswordEntry[] = await response.json();
-            
+
+            const passwordsToExport: PasswordEntry[] = response.data;
+
             // Convert password data to CSV format
             const csvData = Papa.unparse(passwordsToExport);
-            
+
             // Create a Blob from the CSV data
             const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
-            
+
             // Create a link to download the CSV file
             const link = document.createElement('a');
             link.href = url;
             link.download = 'passwords_export.csv';
-            
+
             // Programmatically click the link to trigger download
             link.click();
-            
+
             // Cleanup URL object
             URL.revokeObjectURL(url);
-            
-            // Log recent activity
+
+            // Log recent activity (ensure recentActivities is defined in scope)
             setRecentActivities([...recentActivities, 'Exported passwords to CSV']);
         } catch (error) {
             console.error('Error exporting passwords:', error);
@@ -412,7 +401,7 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
                             <h2>Available Passwords</h2>
                             <div className="button-group">
                                 {/* Import Button */}
-                                <input type="file" accept=".csv" onChange={handleFileUpload} style={{ display: 'none' }} id="file-input" />
+                                <input type="file" accept=".csv" onChange={handleFileUpload} style={{ display: 'none' }} id="file-input" disabled={importing}/>
                                 <label htmlFor="file-input" className="import-btn">Import Passwords</label>
     
                                 {/* Export Button */}
