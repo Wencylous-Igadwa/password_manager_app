@@ -7,119 +7,112 @@ const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const JWT_SECRET = process.env.JWT_SECRET;
 const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET;
 const { sendRecoveryEmail } = require('../services/sendRecoveryEmail');
-const { validationResult } = require('express-validator');
 const EMAIL_JWT_EXPIRATION = '1h';
 const frontendUrl = process.env.FRONTEND_URL;
-
-// In-memory storage for refresh tokens
-let refreshTokens = [];
+const { encryptField, encryptEmail, encryptGoogleOauthId, decryptEmail } = require('../utils/encryption');
+const refreshTokens = [];
 
 // Sign up endpoint
 exports.signup = async (req, res) => {
-  const { email, username, password, googleToken } = req.body;
+    const { email, username, password, googleToken } = req.body;
 
-  if (googleToken) {
-    try {
-      console.time("Google Token Verification");
-      const ticket = await client.verifyIdToken({
-        idToken: googleToken,
-        audience: process.env.GOOGLE_CLIENT_ID,
-      });
-      console.timeEnd("Google Token Verification");
-
-      const payload = ticket.getPayload();
-      const googleEmail = payload.email;
-
-      console.time("Database User Lookup");
-      let user = await User.findOne({ where: { email: googleEmail } });
-      console.timeEnd("Database User Lookup");
-
-      if (!user) {
-        user = new User({
-          email: googleEmail,
-          username: payload.name || googleEmail,
-          google_oauth_id: payload.sub,
-          password_hash: null,
-        });
-        console.time("Database Save New User");
-        await user.save();
-        console.timeEnd("Database Save New User");
+    if (googleToken) {
+      try {
+          // Verify Google token
+          const ticket = await client.verifyIdToken({
+              idToken: googleToken,
+              audience: process.env.GOOGLE_CLIENT_ID,
+          });
+          const payload = ticket.getPayload();
+          const googleEmail = payload.email;
+          const googleOauthId = payload.sub;
+  
+          // Encrypt email with a static IV
+          const encryptedGoogleEmail = encryptEmail(googleEmail);
+  
+          // Encrypt google_oauth_id with a static IV
+          const encryptedGoogleOauthId = encryptGoogleOauthId(googleOauthId);
+          const googleEmailIv = process.env.STATIC_EMAIL_IV;
+          const STATIC_GOOGLE_OAUTH_IV = process.env.STATIC_GOOGLE_OAUTH_IV;
+  
+          // Check if user already exists
+          let user = await User.findOne({
+              where: { email: encryptedGoogleEmail, email_iv: googleEmailIv },
+          });
+  
+          if (!user) {
+              // Encrypt username dynamically
+              const { encryptedField: encryptedUsername, iv: usernameIv } = encryptField(payload.name || googleEmail);
+              const placeholderPassword = 'google-oauth-user'; // Placeholder value for Google users
+              const passwordHash = await argon2.hash(placeholderPassword, {
+                type: argon2.argon2id,
+                memoryCost: 2 ** 16,
+                timeCost: 3,
+                parallelism: 3,
+              });
+  
+              // Create new user
+              user = await User.create({
+                  email: encryptedGoogleEmail,
+                  email_iv: googleEmailIv,
+                  username: encryptedUsername,
+                  username_iv: usernameIv,
+                  google_oauth_id: encryptedGoogleOauthId,
+                  google_oauth_id_iv: STATIC_GOOGLE_OAUTH_IV,
+                  password_hash: passwordHash,
+              });
+          }
+  
+          // Set tokens using plain email for user context
+          setTokens(res, user.id, googleEmail);
+  
+          return res.status(201).json({ message: 'Signup successful' });
+      } catch (err) {
+          console.error("Google OAuth Error:", err);
+          return res.status(400).json({ error: 'Invalid Google token' });
       }
-
-      const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '1h' });
-      const refreshToken = jwt.sign({ userId: user.id, email: user.email }, REFRESH_TOKEN_SECRET, { expiresIn: '7d' });
-
-      // Store refresh token securely
-      refreshTokens.push(refreshToken);
-
-      res.cookie('token', token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'Lax',
-        maxAge: 3600000,
-      });
-      res.cookie('refreshToken', refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'Lax',
-        maxAge: 604800000, // 7 days
-      });
-
-      return res.status(201).json({ message: 'Signup successful' });
-    } catch (err) {
-      console.error("Google OAuth Error:", err);
-      return res.status(400).json({ error: 'Invalid Google token' });
     }
-  }
 
-  if (email && password) {
-    try {
-      let user = await User.findOne({ where: { email } });
-      if (user) {
-        return res.status(400).json({ error: 'User already exists' });
-      }
+    if (email && password) {
+        try {
+            const encryptedEmail = encryptEmail(email);
+            const emailIv = process.env.STATIC_EMAIL_IV;
 
-      const hashedPassword = await argon2.hash(password, {
-        type: argon2.argon2id,
-        memoryCost: 2 ** 16,
-        timeCost: 3,
-        parallelism: 1,
-      });
+            let user = await User.findOne({ where: { email: encryptedEmail, email_iv: emailIv } });
 
-      user = new User({
-        email,
-        username,
-        password_hash: hashedPassword,
-      });
+            if (user) {
+                return res.status(400).json({ error: 'User already exists with this email' });
+            }
 
-      await user.save();
+            const hashedPassword = await argon2.hash(password, {
+                type: argon2.argon2id,
+                memoryCost: 2 ** 16,
+                timeCost: 3,
+                parallelism: 1,
+            });
 
-      const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '1h' });
-      const refreshToken = jwt.sign({ userId: user.id, email: user.email }, REFRESH_TOKEN_SECRET, { expiresIn: '7d' });
+            const { encryptedField: encryptedUsername, iv: usernameIv } = encryptField(username);
 
-      refreshTokens.push(refreshToken);
+            user = new User({
+                email: encryptedEmail,
+                email_iv: emailIv,
+                username: encryptedUsername,
+                username_iv: usernameIv,
+                password_hash: hashedPassword,
+            });
 
-      res.cookie('token', token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'Lax',
-        maxAge: 3600000,
-      });
-      res.cookie('refreshToken', refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'Lax',
-        maxAge: 604800000, // 7 days
-      });
+            await user.save();
 
-      return res.status(201).json({ message: 'Signup successful' });
-    } catch (err) {
-      console.error("Signup Error:", err);
-      return res.status(500).json({ error: 'Something went wrong during signup' });
+            setTokens(res, user.id, email);
+            return res.status(201).json({ message: 'Signup successful' });
+
+        } catch (err) {
+            console.error("Signup Error:", err);
+            return res.status(500).json({ error: 'Something went wrong during signup' });
+        }
     }
-  }
 
-  return res.status(400).json({ error: 'Email, password, or Google token required' });
+    return res.status(400).json({ error: 'Email, password, or Google token required' });
 };
 
 exports.loginWithEmailPassword = async (req, res) => {
@@ -130,7 +123,11 @@ exports.loginWithEmailPassword = async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    const user = await User.findOne({ where: { email } });
+    // Encrypt email using the static IV
+    const encryptedEmail = encryptEmail(email);
+
+    // Look up the user by encrypted email
+    const user = await User.findOne({ where: { email: encryptedEmail } });
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -141,37 +138,24 @@ exports.loginWithEmailPassword = async (req, res) => {
       return res.status(400).json({ error: 'Please use Google to login' });
     }
 
+    // Verify the password
     const isPasswordValid = await argon2.verify(user.password_hash, password);
     if (!isPasswordValid) {
-      return res.status(401).json({ error: 'Invalid email or password' });
+      return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Update last login timestamp
+    // Decrypt email (optional)
+    const decryptedEmail = decryptEmail(user.email);
+
+    // Update the last login timestamp
     await user.update({ last_login: new Date() });
 
-    // Generate JWT tokens
-    const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '1h' });
-    const refreshToken = jwt.sign({ userId: user.id, email: user.email }, REFRESH_TOKEN_SECRET, { expiresIn: '7d' });
+    // Set tokens
+    const { token, refreshToken } = setTokens(res, user.id, decryptedEmail);
 
-    refreshTokens.push(refreshToken);
-
-    // Set cookies
-    res.cookie('token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'Lax',
-      maxAge: 3600000,
-    });
-    res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'Lax',
-      maxAge: 604800000,
-    });
-
-    res.status(200).json({ message: 'Login successful', userId: user.id });
+    return res.status(200).json({ message: 'Login successful', userId: user.id });
   } catch (err) {
-    console.error(err);
+    console.error('Login Error:', err);
     res.status(500).json({ error: 'Internal server error', details: err.message });
   }
 };
@@ -191,50 +175,74 @@ exports.loginWithGoogle = async (req, res) => {
     });
     const payload = ticket.getPayload();
     const googleEmail = payload.email;
+    const googleOauthId = payload.sub;
 
-    // Find or create user based on Google email
-    let user = await User.findOne({ where: { email: googleEmail } });
+    // Encrypt email with a static IV
+    const encryptedGoogleEmail = encryptEmail(googleEmail);
+
+    // Encrypt google_oauth_id with a static IV
+    const encryptedGoogleOauthId = encryptGoogleOauthId(googleOauthId);
+    const googleEmailIv = process.env.STATIC_EMAIL_IV;
+    const STATIC_GOOGLE_OAUTH_IV = process.env.STATIC_GOOGLE_OAUTH_IV;
+
+    // Check if user already exists
+    let user = await User.findOne({
+      where: { email: encryptedGoogleEmail, email_iv: googleEmailIv },
+    });
 
     if (!user) {
-      // Create a placeholder password hash for Google users
-      const placeholderPassword = 'google-oauth-user'; // Placeholder password
-      const passwordHash = await argon2.hash(placeholderPassword); // Hash the placeholder password using argon2
+      // Encrypt username dynamically
+      const { encryptedField: encryptedUsername, iv: usernameIv } = encryptField(payload.name || googleEmail);
+      const placeholderPassword = 'google-oauth-user'; // Placeholder value for Google users
+      const passwordHash = await argon2.hash(placeholderPassword, {
+        type: argon2.argon2id,
+        memoryCost: 2 ** 16,
+        timeCost: 3,
+        parallelism: 3,
+      });
 
-      // Create user with the generated password hash
+      // Create new user
       user = await User.create({
-        email: googleEmail,
-        username: payload.name || googleEmail,
-        google_oauth_id: payload.sub,
-        password_hash: passwordHash, // Assign the placeholder password hash
+        email: encryptedGoogleEmail,
+        email_iv: googleEmailIv,
+        username: encryptedUsername,
+        username_iv: usernameIv,
+        google_oauth_id: encryptedGoogleOauthId,
+        google_oauth_id_iv: STATIC_GOOGLE_OAUTH_IV,
+        password_hash: passwordHash,
       });
     }
 
-    // Generate JWT tokens
-    const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '1h' });
-    const refreshToken = jwt.sign({ userId: user.id, email: user.email }, REFRESH_TOKEN_SECRET, { expiresIn: '7d' });
+    // Set tokens using plain email for user context
+    setTokens(res, user.id, googleEmail);
 
-    refreshTokens.push(refreshToken);
+    return res.status(200).json({ message: 'Google login successful', userId: user.id });
+  } catch (err) {
+    console.error('Google Login Error:', err);
+    return res.status(500).json({ error: 'Internal server error', details: err.message });
+  }
+};
 
-    // Set cookies
-    res.cookie('token', token, {
+function setTokens(res, userId, email) {
+  const token = jwt.sign({ userId, email }, process.env.JWT_SECRET, { expiresIn: '1h' });
+  const refreshToken = jwt.sign({ userId, email }, process.env.REFRESH_TOKEN_SECRET, { expiresIn: '7d' });
+  refreshTokens.push(refreshToken);
+
+  res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'Lax',
       maxAge: 3600000,
-    });
-    res.cookie('refreshToken', refreshToken, {
+  });
+  res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'Lax',
       maxAge: 604800000,
-    });
+  });
 
-    res.status(200).json({ message: 'Google login successful', userId: user.id });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error', details: err.message });
-  }
-};
+  return { token, refreshToken };
+}
 
 // Refresh Token endpoint
 exports.refreshToken = (req, res) => {
@@ -285,14 +293,14 @@ exports.requestPasswordReset = async (req, res) => {
   try {
     // Find the user by email
     console.log('Querying for user with email:', email);
-    const user = await User.findOne({ where: { email } });
+    const user = await User.findOne({ where: { decryptedEmail } });
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
     // Check if the user signed in with Google (google_oauth_id is not null)
-    if (user.google_oauth_id) {
+    if (user.decryptedGoogleOauthId) {
       return res.status(400).json({ message: 'Password reset is not available for Google accounts. Please sign in with Google.' });
     }
 

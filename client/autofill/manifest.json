@@ -3,7 +3,12 @@
   "name": "Password Manager Autofill",
   "version": "1.0",
   "description": "Automatically fills in passwords and credentials for easy access to your accounts.",
-  "permissions": ["storage", "activeTab"],
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js"
   },

@@ -16,25 +16,41 @@ const Credential = sequelize.define(
         },
         name: {
             type: DataTypes.STRING(255),
-            allowNull: true, 
+            allowNull: true,
+        },
+        name_iv: {
+            type: DataTypes.TEXT, 
+            allowNull: true,
         },
         site_url: {
             type: DataTypes.STRING(255),
+            allowNull: false,
+        },
+        url_iv: {
+            type: DataTypes.TEXT,
             allowNull: false,
         },
         username: {
             type: DataTypes.STRING(255),
             allowNull: false,
         },
+        username_iv: {
+            type: DataTypes.TEXT,
+            allowNull: false,
+        },
         password: {
             type: DataTypes.TEXT,
             allowNull: false,
         },
-        iv: {
+        password_iv: {
             type: DataTypes.TEXT,
             allowNull: false,
         },
         note: {
+            type: DataTypes.TEXT,
+            allowNull: true,
+        },
+        note_iv: {
             type: DataTypes.TEXT,
             allowNull: true,
         },

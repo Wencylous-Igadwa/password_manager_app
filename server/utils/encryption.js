@@ -1,22 +1,49 @@
 const crypto = require('crypto');
 
-// Use a 32-byte secret key for AES-256-CBC
-const SECRET_KEY = crypto.randomBytes(32); 
+// Retrieve the secret key from environment variables
+const SECRET_KEY = Buffer.from(process.env.SECRET_KEY, 'hex');
+const STATIC_EMAIL_IV = Buffer.from(process.env.STATIC_EMAIL_IV, 'hex');
+const STATIC_GOOGLE_OAUTH_IV = Buffer.from(process.env.STATIC_GOOGLE_OAUTH_IV, 'hex');
 const ALGORITHM = 'aes-256-cbc';
 
-exports.encryptPassword = (password) => {
-    // Use a 16-byte IV for AES-256-CBC
-    const iv = crypto.randomBytes(16);  // AES block size is 16 bytes
+// Encrypt function
+exports.encryptField = (field) => {
+    if (!field) return { encryptedField: null, iv: null }; 
+    const iv = crypto.randomBytes(16); // AES block size is 16 bytes
     const cipher = crypto.createCipheriv(ALGORITHM, SECRET_KEY, iv);
-    let encrypted = cipher.update(password, 'utf8', 'hex');
+    let encrypted = cipher.update(field, 'utf8', 'hex');
     encrypted += cipher.final('hex');
-    return { encryptedPassword: encrypted, iv: iv.toString('hex') };  // Return IV as hex string
+    return { encryptedField: encrypted, iv: iv.toString('hex') };
 };
 
-exports.decryptPassword = (encryptedPassword, iv) => {
-    // Convert the IV from hex string to Buffer
+// Decrypt function
+exports.decryptField = (encryptedField, iv) => {
+    if (!encryptedField || !iv) return null; 
     const decipher = crypto.createDecipheriv(ALGORITHM, SECRET_KEY, Buffer.from(iv, 'hex'));
-    let decrypted = decipher.update(encryptedPassword, 'hex', 'utf8');
+    let decrypted = decipher.update(encryptedField, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
     return decrypted;
 };
+
+// Dedicated Static iv logic for email and google_oauth_id
+function encryptWithStaticIv(field, staticIv) {
+    if (!field) return null; 
+    const cipher = crypto.createCipheriv(ALGORITHM, SECRET_KEY, staticIv);
+    let encrypted = cipher.update(field, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    return encrypted;
+}
+
+function decryptWithStaticIv(encryptedField, staticIv) {
+    if (!encryptedField) return null; 
+    const decipher = crypto.createDecipheriv(ALGORITHM, SECRET_KEY, staticIv);
+    let decrypted = decipher.update(encryptedField, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+}
+
+exports.encryptEmail = (email) => encryptWithStaticIv(email, STATIC_EMAIL_IV);
+exports.decryptEmail = (encryptedEmail) => decryptWithStaticIv(encryptedEmail, STATIC_EMAIL_IV);
+
+exports.encryptGoogleOauthId = (googleOauthId) => encryptWithStaticIv(googleOauthId, STATIC_GOOGLE_OAUTH_IV);
+exports.decryptGoogleOauthId = (encryptedGoogleOauthId) => decryptWithStaticIv(encryptedGoogleOauthId, STATIC_GOOGLE_OAUTH_IV);

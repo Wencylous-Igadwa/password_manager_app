@@ -4,13 +4,17 @@ const sequelize = require('../config/db');
 const User = sequelize.define('User', {
   id: {
     type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4, // This will automatically generate UUID
+    defaultValue: DataTypes.UUIDV4, // Automatically generate UUID
     primaryKey: true,
   },
   email: {
-    type: DataTypes.STRING(100),
+    type: DataTypes.STRING(512),
     allowNull: false,
     unique: true,
+  },
+  email_iv: {
+    type: DataTypes.STRING(512),
+    allowNull: false,
   },
   password_hash: {
     type: DataTypes.STRING(512),
@@ -21,7 +25,11 @@ const User = sequelize.define('User', {
     defaultValue: false,
   },
   google_oauth_id: {
-    type: DataTypes.STRING(255),
+    type: DataTypes.STRING(512),
+    allowNull: true,
+  },
+  google_oauth_id_iv: {
+    type: DataTypes.STRING(512),
     allowNull: true,
   },
   created_at: {
@@ -47,7 +55,11 @@ const User = sequelize.define('User', {
     allowNull: true,
   },
   username: {
-    type: DataTypes.STRING(100),
+    type: DataTypes.STRING(512),
+    allowNull: true,
+  },
+  username_iv: {
+    type: DataTypes.STRING(512),
     allowNull: true,
   },
 }, {
@@ -57,7 +69,7 @@ const User = sequelize.define('User', {
   timestamps: false,
 });
 
-// This ensures that created_at and updated_at are updated automatically when an entry is modified
+// Hooks for managing timestamps
 User.beforeUpdate((user, options) => {
   user.updated_at = new Date();
 });
