@@ -15,7 +15,6 @@ exports.protectedRoute = async (req, res) => {
   res.json({ message: 'This is a protected route', user: req.user });
 };
 
-// Fetch credentials for a specific site
 exports.getCredentials = async (req, res) => {
   try {
       const { site_url } = req.query;
@@ -42,9 +41,9 @@ exports.getCredentials = async (req, res) => {
 
       // Decrypt each field using its associated IV before sending the response
       const response = credentials.map((credential) => ({
-          site_url: decryptPassword(credential.site_url, credential.url_iv),
-          username: decryptPassword(credential.username, credential.username_iv),
-          password: decryptPassword(credential.password, credential.password_iv),
+          site_url: decryptField(credential.site_url, credential.url_iv),
+          username: decryptField(credential.username, credential.username_iv),
+          password: decryptField(credential.password, credential.password_iv),
       }));
 
       res.status(200).json(response);
@@ -54,7 +53,38 @@ exports.getCredentials = async (req, res) => {
   }
 };
 
-
+exports.fetchAllCreds = async (req, res) => {
+    try {
+        const whereCondition = { user_id: req.user.userId };
+        const credentials = await Credential.findAll({
+            where: whereCondition,
+            attributes: [
+                'site_url',
+                'url_iv',
+                'username',
+                'username_iv',
+                'password',
+                'password_iv',
+            ],
+        });
+  
+        if (credentials.length === 0) {
+            return res.status(404).json({ message: 'No credentials found' });
+        }
+  
+        // Decrypt each field using its associated IV before sending the response
+        const response = credentials.map((credential) => ({
+            url: decryptField(credential.site_url, credential.url_iv),
+            username: decryptField(credential.username, credential.username_iv),
+            password: decryptField(credential.password, credential.password_iv),
+        }));
+  
+        res.status(200).json(response);
+    } catch (error) {
+        console.error('Error fetching credentials:', error);
+        res.status(500).json({ message: 'Failed to fetch credentials' });
+    }
+};
 
 // Update password
 exports.updatePassword = async (req, res) => {

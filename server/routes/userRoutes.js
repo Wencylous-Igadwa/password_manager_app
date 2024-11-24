@@ -3,31 +3,37 @@ const Joi = require('joi');
 const router = express.Router();
 const verifyToken = require('../middleware/authenticateToken');
 const { csrfProtection } = require('../middleware/csrfMiddleware');
-const { protectedRoute, getCredentials, updatePassword, deletePassword, savePassword, exportPasswords, importPasswords } = require('../controllers/userController');
+const { protectedRoute, getCredentials, fetchAllCreds, updatePassword, deletePassword, savePassword, exportPasswords, importPasswords } = require('../controllers/userController');
 
 // Joi schema for validating the 'domain' parameter
 const domainValidationSchema = Joi.object({
   domain: Joi.string().required().min(1).max(255).message('Domain is required and must be a valid string'),
 });
 
+// Protected route - Only accessible if logged in
+router.get('/dashboard', verifyToken, protectedRoute);
+
 // Route to fetch credentials for a specific domain (protected by JWT)
-router.post('/get-credentials', verifyToken, csrfProtection, async (req, res, next) => {
+router.get('/get-credentials', verifyToken, csrfProtection, async (req, res, next) => {
   try {
-    // Validate the domain input
     const { error } = domainValidationSchema.validate(req.body);
     if (error) {
       return res.status(400).json({ error: error.details[0].message });
     }
-
-    // If validation passes, call the controller method
     await getCredentials(req, res, next);
   } catch (err) {
     next(err);
   }
 });
 
-// Protected route - Only accessible if logged in
-router.get('/dashboard', verifyToken, protectedRoute);
+// Route to fetch all credentials of a specific user
+router.get('/fetch-allcreds', verifyToken, csrfProtection, async (req, res, next) => {
+  try {
+    await fetchAllCreds(req, res, next);
+  } catch (err) {
+    next(err);
+  }
+});
 
 // Update password - Protected route
 router.post('/update-password', verifyToken, csrfProtection, async (req, res, next) => {

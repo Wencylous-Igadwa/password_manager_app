@@ -45,20 +45,20 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
     const [menuOpen, setMenuOpen] = useState(false);
 
     useEffect(() => {
-        // Fetch initial passwords data (optional)
-        const fetchPasswords = async () => {
+        // Fetch all credentials data
+        const fetchCredentials = async () => {
             try {
-                const response = await axiosInstance.get('/account/get-passwords');
+                const response = await axiosInstance.get('/account/fetch-allcreds');
                 if (response.status === 200) {
                     setPasswords(response.data);
                 }
             } catch (error) {
-                console.error('Error fetching passwords:', error);
-                setError('Failed to load passwords. Please try again.');
+                console.error('Error fetching credentials:', error);
+                setError('Failed to load credentials. Please try again.');
             }
         };
-        fetchPasswords();
-    }, []);
+        fetchCredentials();
+    }, []); 
 
     const handleLogout = async () => {
         try {
@@ -239,7 +239,6 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
             }
         }
     };
-
     const exportPasswordsToCSV = async () => {
         try {
             const response = await axiosInstance.get('/account/export-passwords');
@@ -281,6 +280,7 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
         }));
     };
 
+
      // Dark/Light mode
      const toggleTheme = () => {
         setIsDarkMode(!isDarkMode);
@@ -314,14 +314,14 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
                     {selectedContent === 'availablePasswords' && (
                         <AvailablePasswords
                             passwords={passwords}
-                            visiblePasswords={visiblePasswords} // Use visiblePasswords from state
-                            handlePasswordClick={(index) => togglePasswordVisibility(index)} // Toggle visibility on click
+                            visiblePasswords={visiblePasswords}
+                            togglePasswordVisibility={togglePasswordVisibility}
                             editIndex={editIndex}
                             editedEntry={editedEntry}
                             handleEditedFieldChange={handleEditedFieldChange}
                             saveEdit={saveEdit}
                             cancelEdit={cancelEdit}
-                            copyCredentialsToClipboard={copyCredentialsToClipboard} // Copy credentials handler
+                            copyCredentialsToClipboard={copyCredentialsToClipboard}
                             handleEdit={handleEdit}
                             deletePassword={deletePassword}
                             importing={importing}

@@ -1,3 +1,5 @@
+import React from 'react';
+
 type PasswordEntry = {
     url: string;
     username: string;
@@ -12,15 +14,15 @@ type PasswordStrength = {
 type AvailablePasswordsProps = {
     passwords: PasswordEntry[];
     visiblePasswords: { [index: number]: boolean };
-    handlePasswordClick: (index: number) => void;
-    editIndex: number | null; // Allow null for no editing state
+    togglePasswordVisibility: (index: number) => void;
+    editIndex: number | null;
     editedEntry: PasswordEntry | null;
     handleEditedFieldChange: (field: 'url' | 'username' | 'password', value: string) => void;
     saveEdit: () => void;
     cancelEdit: () => void;
-    copyCredentialsToClipboard: (index: number) => void;
     handleEdit: (index: number) => void;
     deletePassword: (index: number) => void;
+    copyCredentialsToClipboard: (index: number) => void;
     importing: boolean;
     exportPasswordsToCSV: () => void;
     handleFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -30,7 +32,7 @@ type AvailablePasswordsProps = {
 const AvailablePasswords: React.FC<AvailablePasswordsProps> = ({
     passwords,
     visiblePasswords,
-    handlePasswordClick,
+    togglePasswordVisibility,
     editIndex,
     editedEntry,
     handleEditedFieldChange,
@@ -67,7 +69,7 @@ const AvailablePasswords: React.FC<AvailablePasswordsProps> = ({
         <table>
             <thead>
                 <tr>
-                    <th>URL</th>
+                    <th>Site</th>
                     <th>Username</th>
                     <th>Password</th>
                     <th>Actions</th>
@@ -124,7 +126,9 @@ const AvailablePasswords: React.FC<AvailablePasswordsProps> = ({
                                 <>
                                     <button onClick={() => handleEdit(index)}>Edit</button>
                                     <button onClick={() => deletePassword(index)}>Delete</button>
-                                    <button onClick={() => handlePasswordClick(index)}>Copy</button>
+                                    <button onClick={() => togglePasswordVisibility(index)}>
+                                        {visiblePasswords[index] ? 'Hide' : 'Show'}
+                                    </button>
                                 </>
                             )}
                         </td>
