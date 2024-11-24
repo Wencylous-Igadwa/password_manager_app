@@ -1,112 +1,130 @@
- 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './Dashboard.css';
 import Papa from 'papaparse';
 import { useNavigate } from 'react-router-dom';
-import { FaEye, FaEyeSlash ,FaClipboard, FaEdit, FaTrash, FaSave } from 'react-icons/fa';
-import dash1 from '/src/assets/images/dash1.png';
 import axiosInstance from "../utils/axiosInstance";
-
 import { getTokensIfNeeded } from "../utils/axiosInstance";
+import Navbar from './components/Navbar';
+import Sidebar from './components/Sidebar';
+import AddPassword from './components/AddPassword';
+import RecentActivities from './components/RecentActivities';
+import AvailablePasswords from './components/AvailablePasswords';
+import NoOptionSelected from './components/NoOptionSelected';
 
 interface Props {
     username: string;
     onLogout: () => void;
 }
 
- // Define the structure of a single password entry
- interface PasswordEntry {
+interface PasswordEntry {
     url: string;
     username: string;
     password: string;
 }
 
+type SelectedContent = 'addPassword' | 'recentActivities' | 'availablePasswords' | null;
+
+interface VisiblePasswords {
+    [index: number]: boolean;
+}
+
 const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
-    const navigate = useNavigate(); // Initialize navigate hook
+    const navigate = useNavigate();
     const [passwords, setPasswords] = useState<PasswordEntry[]>([]);
-    const [editIndex, setEditIndex] = useState<number | null>(null); // Track index of edited entry
-    const [editedEntry, setEditedEntry] = useState<PasswordEntry | null>(null); // Hold edited entry data
-    const [recentActivities, setRecentActivities] = useState<string[]>([]);
+    const [recentActivities, setRecentActivities] = useState<{ activity: string, timestamp: string }[]>([]);
     const [newUrl, setNewUrl] = useState<string>('');
     const [newUsername, setNewUsername] = useState<string>('');
     const [newPassword, setNewPassword] = useState<string>('');
-    const [selectedContent, setSelectedContent] = useState<'addPassword' | 'recentActivities' | 'availablePasswords' | null>(null);
-    const [passwordStrength, setPasswordStrength] = useState<{ score: number; text: string } | null>(null);
-    const [menuOpen, setMenuOpen] = useState(false);  // State to control menu dropdown visibility
-    const [isDarkMode, setIsDarkMode] = useState(false);  // State for dark/light mode
-    const [visiblePasswords, setVisiblePasswords] = useState<{ [index: number]: boolean }>({});
+    const [selectedContent, setSelectedContent] = useState<SelectedContent>(null);
+    const [editIndex, setEditIndex] = useState<number | null>(null);
+    const [editedEntry, setEditedEntry] = useState<PasswordEntry | null>(null);
+    const [isDarkMode, setIsDarkMode] = useState(false);
+    const [visiblePasswords, setVisiblePasswords] = useState<VisiblePasswords>({});
     const [importing, setImporting] = useState(false);
     const [, setError] = useState<string | null>(null);
+    const [menuOpen, setMenuOpen] = useState(false);
+
+    useEffect(() => {
+        // Fetch initial passwords data (optional)
+        const fetchPasswords = async () => {
+            try {
+                const response = await axiosInstance.get('/account/get-passwords');
+                if (response.status === 200) {
+                    setPasswords(response.data);
+                }
+            } catch (error) {
+                console.error('Error fetching passwords:', error);
+                setError('Failed to load passwords. Please try again.');
+            }
+        };
+        fetchPasswords();
+    }, []);
+
     const handleLogout = async () => {
         try {
-            await axiosInstance.post('/auth/logout');  // Server clears the token cookie
-    
-            // Clear remaining tokens and session data on the client side
+            await axiosInstance.post('/auth/logout');
             localStorage.removeItem('authToken');
             sessionStorage.removeItem('authToken');
             localStorage.removeItem('csrfToken');
-            document.cookie = 'csrfToken=; Max-Age=0; path=/;';  // Remove csrfToken cookie
-    
-            // Call onLogout callback if provided
+            document.cookie = 'csrfToken=; Max-Age=0; path=/;';
             if (typeof onLogout === 'function') {
                 onLogout();
             }
-            
-            // Redirect to login page
             setTimeout(() => {
-                navigate('/login');  // Redirect to login page after 3 seconds
+                navigate('/login');
             }, 3000);
         } catch (error) {
             console.error('Error during logout:', error);
+            setError('Logout failed. Please try again.');
         }
+    };
+
+    const deletePassword = (index: number) => {
+        const updatedPasswords = passwords.filter((_, i) => i !== index);
+        setPasswords(updatedPasswords);
+        deletePasswordFromDatabase(passwords[index]);
     };
 
     const handleEdit = (index: number) => {
         setEditIndex(index);
-        setEditedEntry({ ...passwords[index] }); // Set the entry's data into editedEntry state
+        setEditedEntry(passwords[index]);
     };
 
-    // Save changes after editing
-    const saveEdit = (index: number) => {
+    const handleEditedFieldChange = (field: 'url' | 'username' | 'password', value: string) => {
         if (editedEntry) {
+            setEditedEntry({ ...editedEntry, [field]: value });
+        }
+    };
+
+    const saveEdit = async () => {
+        if (editIndex !== null && editedEntry) {
             const updatedPasswords = [...passwords];
-            updatedPasswords[index] = editedEntry;
+            updatedPasswords[editIndex] = editedEntry;
             setPasswords(updatedPasswords);
             setEditIndex(null);
             setEditedEntry(null);
-            // Optionally, save the updated password to the database
-            updatePasswordInDatabase(editedEntry);
+            try {
+                await updatePasswordInDatabase(editedEntry);
+            } catch {
+                setError('Failed to save changes. Please try again.');
+            }
         }
-    };
+    };    
 
     const cancelEdit = () => {
         setEditIndex(null);
         setEditedEntry(null);
     };
 
-    const handleEditedFieldChange = (field: keyof PasswordEntry, value: string) => {
-        if (editedEntry) {
-            setEditedEntry({ ...editedEntry, [field]: value });
-        }
-    };
-     
-    const deletePassword = (index: number) => {
-        const updatedPasswords = passwords.filter((_, i) => i !== index);
-        setPasswords(updatedPasswords);
-        // Optionally, remove the password from the database
-        deletePasswordFromDatabase(passwords[index]);
-    };
-
-    // Update password in the database
     const updatePasswordInDatabase = async (passwordEntry: PasswordEntry) => {
         try {
             await axiosInstance.post('/account/update-password', passwordEntry);
         } catch (error) {
             console.error('Failed to update password:', error);
+            setError('Failed to update password. Please try again.');
         }
     };
 
-    // Delete password from the database
     const deletePasswordFromDatabase = async (passwordEntry: PasswordEntry) => {
         try {
             await axiosInstance.delete('/account/delete-password', {
@@ -114,98 +132,50 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
             });
         } catch (error) {
             console.error('Failed to delete password:', error);
+            setError('Failed to delete password. Please try again.');
         }
     };
-
-    // Dark/Light mode
-    const toggleTheme = () => {
-        setIsDarkMode(!isDarkMode);
-        document.body.classList.toggle('dark-mode', !isDarkMode);
-    };
-
-    // Function to copy username and password to clipboard
-    const copyCredentialsToClipboard = (username: string, password: string) => {
-        const textToCopy = `Username: ${username}\nPassword: ${password}`;
-        navigator.clipboard.writeText(textToCopy)
-            .then(() => alert("Username and Password copied to clipboard!"))
-            .catch((err) => console.error("Failed to copy text: ", err));
-    };
-     
-    // Password visibiity
-    const togglePasswordVisibility = (index: number) => {
-        setVisiblePasswords(prev => ({
-            ...prev,
-            [index]: !prev[index],
-        }));
-    };
-
-    const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (file) {
-            const formData = new FormData();
-            formData.append('csvFile', file);
-    
-            setImporting(true);
-            setError(null);
-    
+    const addPassword = async () => {
+        if (newUrl && newUsername && newPassword) {
             try {
-                // Get the CSRF token (it should already be available in your app)
-                const { csrfToken } = await getTokensIfNeeded();
-    
-                const response = await axiosInstance.post('/account/import-passwords', formData, {
-                    headers: {
-                        'Content-Type': 'multipart/form-data', // Form data content type
-                        'X-CSRF-Token': csrfToken, // Include CSRF token in headers
-                    },
-                });
-    
-                if (response.status === 200) {
-                    alert('Passwords imported successfully!');
+                try {
+                    new URL(newUrl);
+                } catch {
+                    alert('Please enter a valid URL.');
+                    return;
                 }
-            } catch (err) {
-                console.error('Error importing passwords:', err);
-                setError('Failed to import passwords. Please check the file format.');
-            } finally {
-                setImporting(false);
+
+                const payload = {
+                    site_url: newUrl,
+                    username: newUsername,
+                    password: newPassword,
+                };
+
+                const { csrfToken } = await getTokensIfNeeded();
+                const response = await axiosInstance.post("/account/save-password", payload, {
+                    headers: { 'X-CSRF-Token': csrfToken },
+                });
+
+                if (response.status === 201) {
+                    const newEntry = { url: newUrl, username: newUsername, password: newPassword };
+                    setPasswords([...passwords, newEntry]);
+
+                    const timestamp = new Date().toLocaleString();
+                    setRecentActivities([...recentActivities, { activity: `Added password for ${newUsername} at ${newUrl}`, timestamp }]);
+
+                    setNewUrl('');
+                    setNewUsername('');
+                    setNewPassword('');
+
+                    alert("Password added successfully!");
+                } else {
+                    alert("Failed to add password. Please try again.");
+                }
+            } catch {
+                alert('An error occurred. Please try again.');
             }
-        }
-    };
-    
-
-    // Function to export passwords to CSV
-    const exportPasswordsToCSV = async () => {
-        try {
-            // Fetch passwords from the database if needed
-            const response = await axiosInstance.get('/account/export-passwords');
-            if (response.status !== 200) {
-                console.error('Failed to fetch passwords for export');
-                return;
-            }
-
-            const passwordsToExport: PasswordEntry[] = response.data;
-
-            // Convert password data to CSV format
-            const csvData = Papa.unparse(passwordsToExport);
-
-            // Create a Blob from the CSV data
-            const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-
-            // Create a link to download the CSV file
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = 'passwords_export.csv';
-
-            // Programmatically click the link to trigger download
-            link.click();
-
-            // Cleanup URL object
-            URL.revokeObjectURL(url);
-
-            // Log recent activity (ensure recentActivities is defined in scope)
-            setRecentActivities([...recentActivities, 'Exported passwords to CSV']);
-        } catch (error) {
-            console.error('Error exporting passwords:', error);
+        } else {
+            alert('Please fill in all fields.');
         }
     };
 
@@ -239,303 +209,153 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
         setNewPassword(password.join(''));
     };
 
-    // Function to add a new password
-    const addPassword = () => {
-        if (newUrl && newUsername && newPassword) {
+    const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            const formData = new FormData();
+            formData.append('csvFile', file);
+
+            setImporting(true);
+            setError(null);
+
             try {
-                // Check if newUrl is a valid URL
-                new URL(newUrl);
+                const { csrfToken } = await getTokensIfNeeded();
 
-                const newEntry = { url: newUrl, username: newUsername, password: newPassword };
-                setPasswords([...passwords, newEntry]);
-                setRecentActivities([...recentActivities, `Added password for ${newUsername} at ${newUrl}`]);
+                const response = await axiosInstance.post('/account/import-passwords', formData, {
+                    headers: {
+                        'Content-Type': 'multipart/form-data',
+                        'X-CSRF-Token': csrfToken,
+                    },
+                });
 
-                // Clear the fields after adding
-                setNewUrl('');
-                setNewUsername('');
-                setNewPassword('');
-            } catch {
-                alert('Please enter a valid URL.');
+                if (response.status === 200) {
+                    alert('Passwords imported successfully!');
+                }
+            } catch (err) {
+                console.error('Error importing passwords:', err);
+                setError('Failed to import passwords. Please check the file format.');
+            } finally {
+                setImporting(false);
             }
-        } else {
-            alert('Please fill in all fields.');
         }
     };
 
-    // Password strength analyzer
-    const analyzePasswordStrength = (password: string) => {
-        let score = 0;
-        let text = 'Weak';
+    const exportPasswordsToCSV = async () => {
+        try {
+            const response = await axiosInstance.get('/account/export-passwords');
+            if (response.status !== 200) {
+                console.error('Failed to fetch passwords for export');
+                return;
+            }
 
-        if (password.length >= 8) score++;
-        if (/[A-Z]/.test(password)) score++;
-        if (/[a-z]/.test(password)) score++;
-        if (/[0-9]/.test(password)) score++;
-        if (/[^A-Za-z0-9]/.test(password)) score++;
+            const passwordsToExport: PasswordEntry[] = response.data;
+            const csvData = Papa.unparse(passwordsToExport);
+            const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
 
-        switch (score) {
-            case 1:
-            case 2:
-                text = 'Weak';
-                break;
-            case 3:
-                text = 'Moderate';
-                break;
-            case 4:
-                text = 'Strong';
-                break;
-            case 5:
-                text = 'Very Strong';
-                break;
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'passwords_export.csv';
+            link.click();
+
+            URL.revokeObjectURL(url);
+            setRecentActivities([...recentActivities, { activity: 'Exported passwords to CSV', timestamp: new Date().toLocaleString() }]);
+        } catch (error) {
+            console.error('Error exporting passwords:', error);
+            setError('Failed to export passwords. Please try again.');
         }
-
-        setPasswordStrength({ score, text });
     };
 
-    // Handle click on a password row to analyze its strength
-    const handlePasswordClick = (password: string) => {
-        analyzePasswordStrength(password);
-        setSelectedContent('availablePasswords');
+    const copyCredentialsToClipboard = (index: number) => {
+        const password = passwords[index];
+        const textToCopy = `Username: ${password.username}\nPassword: ${password.password}`;
+        navigator.clipboard.writeText(textToCopy)
+            .then(() => alert("Username and Password copied to clipboard!"))
+            .catch((err) => console.error("Failed to copy text: ", err));
     };
 
-    // Handle content selection
-    const handleContentSelect = (content: 'addPassword' | 'recentActivities' | 'availablePasswords') => {
+    const togglePasswordVisibility = (index: number) => {
+        setVisiblePasswords((prev) => ({
+            ...prev,
+            [index]: !prev[index],
+        }));
+    };
+
+     // Dark/Light mode
+     const toggleTheme = () => {
+        setIsDarkMode(!isDarkMode);
+        document.body.classList.toggle('dark-mode', !isDarkMode);
+    };
+
+    const handleContentSelect = (content: SelectedContent) => {
         setSelectedContent(content);
     };
 
+    const handleMenuToggle = () => {
+        setMenuOpen(!menuOpen);
+    };
 
     return (
         <div className={`dashboard ${isDarkMode ? 'dark' : 'light'}`}>
-            {/* Navbar */}
-            <nav className="navbar">
-                {/* Menu Button */}
-                <div className="menu-button" onClick={() => setMenuOpen(!menuOpen)}>
-                    ☰
-                </div>
-                <div className="navbar-brand">Password Manager</div>
-                <div className="navbar-links">
-                    <button onClick={handleLogout}>Logout</button>
-                </div>
-    
-                {/* Menu Dropdown */}
-                {menuOpen && (
-                    <div className="dropdown-menu">
-                        <p>
-                            <strong>Account:</strong> {username}
-                        </p>
-                        <button onClick={toggleTheme}>
-                            {isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-                        </button>
-                    </div>
-                )}
-            </nav>
-    
-            <h1>Welcome {username}</h1>
-    
+            <Navbar 
+                username={username} 
+                handleLogout={handleLogout} 
+                toggleTheme={toggleTheme} 
+                menuOpen={menuOpen} 
+                handleMenuToggle={handleMenuToggle} 
+                isDarkMode={isDarkMode} 
+            />
+            <h1>Welcome, {username}</h1>
+
             {/* Main Container */}
             <div className="container">
-                {/* Sidebar */}
-                <div className="sidebar">
-                    <h2>Menu</h2>
-                    <button className="menu-button" onClick={() => handleContentSelect('addPassword')}>Add Password</button>
-                    <button className="menu-button" onClick={() => handleContentSelect('recentActivities')}>Recent Activities</button>
-                    <button className="menu-button" onClick={() => handleContentSelect('availablePasswords')}>Available Passwords</button>
-                </div>
-    
-                {/* Content Area */}
+                <Sidebar handleContentSelect={handleContentSelect} />
                 <div className="content">
-                    {selectedContent === 'addPassword' && (
-                        <div>
-                            <h2>Add Password</h2>
-                            <div className="form-group">
-                                <input
-                                    type="url"
-                                    value={newUrl}
-                                    onChange={(e) => setNewUrl(e.target.value)}
-                                    placeholder="Enter site URL"
-                                    required
-                                />
-                                <input
-                                    type="text"
-                                    value={newUsername}
-                                    onChange={(e) => setNewUsername(e.target.value)}
-                                    placeholder="Enter username"
-                                />
-                                <div className="password-input-group">
-                                    <input
-                                        type="text"
-                                        value={newPassword}
-                                        onChange={(e) => setNewPassword(e.target.value)} // Allow user input
-                                        placeholder="Enter or generate password"
-                                    />
-                                    <button className="generate-button" onClick={generatePassword}>
-                                        Generate Password
-                                    </button>
-                                </div>
-                                <div className="button-container">
-                                    <button className="add-button" onClick={addPassword}>Add New Password</button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-    
-                    {selectedContent === 'recentActivities' && (
-                        <div>
-                            <h2>Recent Activities</h2>
-                            <ul>
-                                {recentActivities.map((activity, index) => (
-                                    <li key={index}>
-                                        {activity.startsWith("Added password for") ? (
-                                            <span className="activity-highlight">{activity}</span>
-                                        ) : (
-                                            activity
-                                        )}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
-    
                     {selectedContent === 'availablePasswords' && (
-                        <div>
-                            <h2>Available Passwords</h2>
-                            <div className="button-group">
-                                {/* Import Button */}
-                                <input type="file" accept=".csv" onChange={handleFileUpload} style={{ display: 'none' }} id="file-input" disabled={importing}/>
-                                <label htmlFor="file-input" className="import-btn">Import Passwords</label>
-    
-                                {/* Export Button */}
-                                <button className="export-btn" onClick={exportPasswordsToCSV}>Export Passwords</button>
-                            </div>
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>URL</th>
-                                        <th>Username</th>
-                                        <th>Password</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {passwords.map((entry, index) => (
-                                        <tr key={index}>
-                                            <td>
-                                                {editIndex === index ? (
-                                                    <input
-                                                        type="text"
-                                                        value={editedEntry?.url || ''}
-                                                        onChange={(e) => handleEditedFieldChange('url', e.target.value)}
-                                                        aria-label="Edit URL"
-                                                    />
-                                                ) : (
-                                                    entry.url
-                                                )}
-                                            </td>
-                                            <td>
-                                                {editIndex === index ? (
-                                                    <input
-                                                        type="text"
-                                                        value={editedEntry?.username || ''}
-                                                        onChange={(e) => handleEditedFieldChange('username', e.target.value)}
-                                                        aria-label="Edit Username"
-                                                    />
-                                                ) : (
-                                                    entry.username
-                                                )}
-                                            </td>
-                                            <td>
-                                                {editIndex === index ? (
-                                                    <input
-                                                        type="text"
-                                                        value={editedEntry?.password || ''}
-                                                        onChange={(e) => handleEditedFieldChange('password', e.target.value)}
-                                                        aria-label="Edit Password"
-                                                    />
-                                                ) : (
-                                                    <span
-                                                        className="password-field"
-                                                        onClick={() => handlePasswordClick(entry.password)}
-                                                    >
-                                                        {visiblePasswords[index] ? entry.password : '•'.repeat(entry.password.length)}
-                                                        <button
-                                                            className="toggle-visibility-btn"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                togglePasswordVisibility(index);
-                                                            }}
-                                                            aria-label={
-                                                                visiblePasswords[index]
-                                                                    ? "Hide password"
-                                                                    : "Show password"
-                                                            }
-                                                        >
-                                                            {visiblePasswords[index] ? <FaEyeSlash /> : <FaEye />}
-                                                        </button>
-                                                    </span>
-                                                )}
-                                            </td>
-                                            <td>
-                                                <div className="actions-group">
-                                                    {editIndex === index ? (
-                                                        <>
-                                                            <button onClick={() => saveEdit(index)} aria-label="Save Edit">
-                                                                <FaSave /> Save
-                                                            </button>
-                                                            <button onClick={cancelEdit} aria-label="Cancel Edit">Cancel</button>
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <button
-                                                                onClick={() =>
-                                                                    copyCredentialsToClipboard(entry.username, entry.password)
-                                                                }
-                                                                aria-label="Copy credentials to clipboard"
-                                                            >
-                                                                <FaClipboard /> Copy
-                                                            </button>
-                                                            <button onClick={() => handleEdit(index)} aria-label="Edit Entry">
-                                                                <FaEdit /> Edit
-                                                            </button>
-                                                            <button
-                                                                onClick={() => deletePassword(index)}
-                                                                aria-label="Delete Entry"
-                                                            >
-                                                                <FaTrash /> Delete
-                                                            </button>
-                                                        </>
-                                                    )}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-
-                            {passwordStrength && (
-                                <div className="password-strength">
-                                    <h3>Password Strength</h3>
-                                    <p>Score: {passwordStrength.score}/5</p>
-                                    <p>Strength: {passwordStrength.text}</p>
-                                    <div className="strength-bar">
-                                        <div
-                                            className={`strength-level ${passwordStrength.text === 'Very Strong' ? 'strength-very-strong' : `strength-${passwordStrength.text.toLowerCase()}`}`}
-                                            style={{ width: `${(passwordStrength.score / 5) * 100}%` }}
-                                        />
-                                    </div>
-                                </div>
-                            )}
-                        </div>
+                        <AvailablePasswords
+                            passwords={passwords}
+                            visiblePasswords={visiblePasswords} // Use visiblePasswords from state
+                            handlePasswordClick={(index) => togglePasswordVisibility(index)} // Toggle visibility on click
+                            editIndex={editIndex}
+                            editedEntry={editedEntry}
+                            handleEditedFieldChange={handleEditedFieldChange}
+                            saveEdit={saveEdit}
+                            cancelEdit={cancelEdit}
+                            copyCredentialsToClipboard={copyCredentialsToClipboard} // Copy credentials handler
+                            handleEdit={handleEdit}
+                            deletePassword={deletePassword}
+                            importing={importing}
+                            exportPasswordsToCSV={exportPasswordsToCSV}
+                            handleFileUpload={handleFileUpload}
+                        />
                     )}
-    
-                    {selectedContent === null && (
-                        <div className="no-option-message">
-                            <p>Select an option from the menu.</p>
-                            <img src={dash1} className="no-option-image" alt="dash1"/>
-                        </div>
+                    {selectedContent === 'addPassword' && (
+                        <AddPassword
+                            newUrl={newUrl}
+                            newUsername={newUsername}
+                            newPassword={newPassword}
+                            setNewUrl={setNewUrl} // Function to update the URL
+                            setNewUsername={setNewUsername} // Function to update the username
+                            setNewPassword={setNewPassword} // Function to update the password
+                            addPassword={addPassword} // Function to handle password addition
+                            generatePassword={generatePassword} // Function to generate a random password
+                        />
                     )}
+                    {selectedContent === 'recentActivities' && (
+                    <RecentActivities
+                        recentActivities={recentActivities.map((activityObj) => {
+                            // Format the activity string as required
+                            const { activity, timestamp } = activityObj;
+                            return `${activity} (${timestamp})`;
+                        })}
+                    />
+                    )}
+                    {selectedContent === null && <NoOptionSelected />}
                 </div>
             </div>
+
         </div>
-    )};
-    
+    );
+};
+
 export default Dashboard;

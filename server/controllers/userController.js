@@ -129,49 +129,51 @@ exports.deletePassword = async (req, res) => {
 };
 
 // Save a single credential
+const credentialSchema = Joi.object({
+    site_url: Joi.string().uri().required(),
+    username: Joi.string().min(3).max(255).required(),
+    password: Joi.string().min(8).required(),
+});
 exports.savePassword = async (req, res) => {
-  try {
-      const { site_url, username, password, note } = req.body;
+    try {
+        const { site_url, username, password } = req.body;
 
-      // Validate input
-      const { error } = credentialSchema.validate({ site_url, username, password });
-      if (error) {
-          return res.status(400).json({ message: error.details[0].message });
-      }
+        // Validate input
+        const { error } = credentialSchema.validate({ site_url, username, password });
+        if (error) {
+            return res.status(400).json({ message: error.details[0].message });
+        }
+        // Encrypt the fields (site_url, username, password)
+        const { encryptedField: encryptedSiteUrl, iv: urlIv } = encryptField(site_url);
+        const { encryptedField: encryptedUsername, iv: usernameIv } = encryptField(username);
+        const { encryptedField: encryptedPassword, iv: passwordIv } = encryptField(password);
 
-      // Encrypt the fields (site_url, username, password, note)
-      const { encryptedPassword, iv: passwordIv } = encryptPassword(password);
-      const { encryptedSiteUrl, iv: urlIv } = encryptPassword(site_url);
-      const { encryptedUsername, iv: usernameIv } = encryptPassword(username);
-      const { encryptedNote, iv: noteIv } = encryptPassword(note);
+        // Save credential to the database
+        const newCredential = await Credential.create({
+            user_id: req.user.userId,
+            site_url: encryptedSiteUrl,
+            url_iv: urlIv,
+            username: encryptedUsername,
+            username_iv: usernameIv,
+            password: encryptedPassword,
+            password_iv: passwordIv,
+        });
 
-      // Save credential to the database
-      const newCredential = await Credential.create({
-          user_id: req.user.id,
-          site_url: encryptedSiteUrl,
-          url_iv: urlIv,
-          username: encryptedUsername,
-          username_iv: usernameIv, 
-          password: encryptedPassword,
-          iv: passwordIv, 
-          note: encryptedNote,
-          note_iv: noteIv, 
-      });
-
-      res.status(201).json({ message: 'Credential saved successfully', data: newCredential });
-  } catch (error) {
-      console.error('Error saving credential:', error);
-      res.status(500).json({ message: 'Failed to save credential' });
-  }
+        res.status(201).json({
+            message: 'Credential saved successfully',
+        });
+    } catch (error) {
+        console.error('Error saving credential:', error);
+        res.status(500).json({ message: 'Failed to save credential' });
+    }
 };
-
 
 // Export credentials to CSV
 exports.exportPasswords = async (req, res) => {
   try {
       // Fetch credentials for the authenticated user
       const credentials = await Credential.findAll({
-          where: { user_id: req.user.id },
+          where: { user_id: req.user.userId },
           attributes: [
               'id',
               'site_url',
@@ -179,11 +181,9 @@ exports.exportPasswords = async (req, res) => {
               'username',
               'username_iv',   
               'password',
-              'iv',             
+              'password_iv',             
               'note',
-              'note_iv',      
-              'created_at',
-              'updated_at',
+              'note_iv',
           ],
       });
 
@@ -196,10 +196,8 @@ exports.exportPasswords = async (req, res) => {
           id: credential.id,
           site_url: decryptPassword(credential.site_url, credential.url_iv),  
           username: decryptPassword(credential.username, credential.username_iv), 
-          password: decryptPassword(credential.password, credential.iv), 
+          password: decryptPassword(credential.password, credential.password_iv), 
           note: decryptPassword(credential.note, credential.note_iv),
-          created_at: credential.created_at,
-          updated_at: credential.updated_at,
       }));
 
       // Convert to CSV format

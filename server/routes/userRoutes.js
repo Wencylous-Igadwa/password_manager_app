@@ -69,17 +69,6 @@ router.delete('/delete-password', verifyToken, csrfProtection, async (req, res, 
 // Save a single password - Protected route
 router.post('/save-password', verifyToken, csrfProtection, async (req, res, next) => {
   try {
-    const { error } = Joi.object({
-      user_id: Joi.string().required().uuid(),
-      site_url: Joi.string().required(),
-      username: Joi.string().required(),
-      password: Joi.string().required(),
-    }).validate(req.body);
-
-    if (error) {
-      return res.status(400).json({ error: error.details[0].message });
-    }
-
     await savePassword(req, res, next);
   } catch (err) {
     next(err);
