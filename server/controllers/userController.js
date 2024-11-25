@@ -1,4 +1,5 @@
 const Credential = require('../models/credentialSchema');
+const User = require('../models/userSchema');
 const { encryptField, decryptField } = require('../utils/encryption');
 const Papa = require('papaparse');
 const fs = require('fs');
@@ -97,7 +98,7 @@ exports.updatePassword = async (req, res) => {
 
       // Find the credential by ID
       const credential = await Credential.findOne({
-          where: { id, user_id: req.user.id },
+          where: { id, user_id: req.user.userId },
       });
 
       if (!credential) {
@@ -141,7 +142,7 @@ exports.deletePassword = async (req, res) => {
 
       // Find the credential by ID
       const credential = await Credential.findOne({
-          where: { id, user_id: req.user.id },
+          where: { id, user_id: req.user.userId },
       });
 
       if (!credential) {
@@ -333,8 +334,25 @@ exports.importPasswords = async (req, res) => {
   });
 };
 
+exports.getUsername = async (req, res) => {
+    try {
+        const userId = req.user.userId;  // Extract userId from the request
+        const user = await User.findOne({ where: { id: userId } });
 
+        if (!user) {
+            return res.status(404).json({ error: 'User not found.' });
+        }
 
+        // Decrypt the username using the stored IV
+        const decryptedUsername = decryptField(user.username, user.username_iv); 
 
-
-
+        if (!decryptedUsername) {
+            return res.status(400).json({ error: 'Failed to decrypt username!' });
+        }
+        // Respond with the decrypted username
+        res.json({ username: decryptedUsername });
+    } catch (error) {
+        console.error('Error fetching username:', error);
+        res.status(500).json({ error: 'Server error occurred while retrieving username.' });
+    }
+};

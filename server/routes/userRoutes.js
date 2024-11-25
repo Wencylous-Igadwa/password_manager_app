@@ -3,7 +3,7 @@ const Joi = require('joi');
 const router = express.Router();
 const verifyToken = require('../middleware/authenticateToken');
 const { csrfProtection } = require('../middleware/csrfMiddleware');
-const { protectedRoute, getCredentials, fetchAllCreds, updatePassword, deletePassword, savePassword, exportPasswords, importPasswords } = require('../controllers/userController');
+const { protectedRoute, getCredentials, fetchAllCreds, updatePassword, deletePassword, savePassword, exportPasswords, importPasswords, getUsername } = require('../controllers/userController');
 
 // Joi schema for validating the 'domain' parameter
 const domainValidationSchema = Joi.object({
@@ -94,6 +94,14 @@ router.get('/export-passwords', verifyToken, csrfProtection, async (req, res, ne
 router.post('/import-passwords', verifyToken, csrfProtection, async (req, res, next) => {
   try {
     await importPasswords(req, res, next);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/get-username', verifyToken, csrfProtection, async (req, res, next) => {
+  try {
+    await getUsername(req, res, next);
   } catch (err) {
     next(err);
   }

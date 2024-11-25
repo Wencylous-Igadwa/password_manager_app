@@ -332,6 +332,7 @@ th {
     height: 100%;
     transition: width 0.3s ease-in-out;
     border-radius: 5px;
+    min-width: 50%; /* minimum width for visibility */
 }
 
 /* Colors based on strength levels */
@@ -344,11 +345,22 @@ th {
 }
 
 .strength-strong {
-    background-color: #4db8ff; /* Light blue for strong */
+    background-color: #08d8f3; /* Light blue for strong */
 }
 
 .strength-very-strong {
-    background-color: #4caf50; /* Green color */
+    background-color: #4caf50;
+}
+
+/* Style suggestions */
+.password-strength ul {
+    padding-left: 20px; 
+    margin: 0;
+}
+
+.password-strength ul li {
+    color: #070707;
+    margin: 5px 0;
 }
 
 /* Dark and Light mode styles */

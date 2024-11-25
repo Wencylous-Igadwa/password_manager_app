@@ -9,8 +9,10 @@ import Sidebar from './components/Sidebar';
 import AddPassword from './components/AddPassword';
 import RecentActivities from './components/RecentActivities';
 import AvailablePasswords from './components/AvailablePasswords';
-import NoOptionSelected from './components/NoOptionSelected';
+import PasswordStrengthTable from './components/PasswordStrengthTable';
+import zxcvbn from 'zxcvbn';
 
+// Define the props interface
 interface Props {
     username: string;
     onLogout: () => void;
@@ -22,7 +24,17 @@ interface PasswordEntry {
     password: string;
 }
 
+interface PasswordStrengthEntry {
+    url: string;
+    username: string;
+    password: string;
+    score: number;          
+    strengthText: string;   
+    suggestions: string[];
+}
+
 type SelectedContent = 'addPassword' | 'recentActivities' | 'availablePasswords' | null;
+
 
 interface VisiblePasswords {
     [index: number]: boolean;
@@ -43,7 +55,10 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
     const [importing, setImporting] = useState(false);
     const [, setError] = useState<string | null>(null);
     const [menuOpen, setMenuOpen] = useState(false);
-
+    const [passwordstrength, setPasswordstrength] = useState<PasswordStrengthEntry[]>([]);
+    const [fetchedUsername, setFetchedUsername] = useState<string>(username);
+    
+    
     useEffect(() => {
         // Fetch all credentials data
         const fetchCredentials = async () => {
@@ -57,9 +72,68 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
                 setError('Failed to load credentials. Please try again.');
             }
         };
-        fetchCredentials();
-    }, []); 
+        
+        const getStrengthText = (score: number): string => {
+            switch (score) {
+                case 0:
+                case 1:
+                    return 'Weak';
+                case 2:
+                    return 'Moderate';
+                case 3:
+                    return 'Strong';
+                case 4:
+                    return 'Very Strong';
+                default:
+                    return 'Unknown';
+            }
+        };
+        
+        const assessPasswordStrength = (password: string) => {
+            const result = zxcvbn(password);
+            return {
+                score: result.score,
+                text: getStrengthText(result.score),
+                suggestions: result.feedback.suggestions,
+            };
+        };
+        const checkPasswordStrength = async () => {
+            try {
+                const response = await axiosInstance.get('/account/fetch-allcreds');
+                if (response.status === 200) {
+                    const evaluatedPasswords = response.data.map((entry: PasswordStrengthEntry) => {
+                        const strength = assessPasswordStrength(entry.password);
+                        return {
+                            ...entry,
+                            score: strength.score,
+                            strengthText: strength.text,
+                            suggestions: strength.suggestions,
+                        };
+                    });
+                    setPasswordstrength(evaluatedPasswords); // Save the evaluated passwords in state
+                }
+            } catch (error) {
+                console.error('Error fetching passwords:', error);
+            }
+        };
 
+        // Fetch the username from the backend
+        const fetchUsername = async () => {
+            try {
+                const response = await axiosInstance.get('/account/get-username');
+                if (response.status === 200) {
+                    setFetchedUsername(response.data.username);
+                }
+            } catch (error) {
+                console.error('Error fetching username:', error);
+            }
+        };
+
+        fetchUsername();
+        fetchCredentials();
+        checkPasswordStrength();
+    }, []);
+    
     const handleLogout = async () => {
         try {
             await axiosInstance.post('/auth/logout');
@@ -305,12 +379,20 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
                 handleMenuToggle={handleMenuToggle} 
                 isDarkMode={isDarkMode} 
             />
-            <h1>Welcome, {username}</h1>
-
+            <h1>Welcome, {fetchedUsername}</h1>
+    
             {/* Main Container */}
             <div className="container">
                 <Sidebar handleContentSelect={handleContentSelect} />
                 <div className="content">
+                    {/* Default content showing PasswordStrengthTable */}
+                    {selectedContent === null && (
+                        <>
+                            <h2>Your Passwords</h2>
+                            <PasswordStrengthTable password={passwordstrength} />
+                        </>
+                    )}
+                    
                     {selectedContent === 'availablePasswords' && (
                         <AvailablePasswords
                             passwords={passwords}
@@ -342,20 +424,19 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
                         />
                     )}
                     {selectedContent === 'recentActivities' && (
-                    <RecentActivities
-                        recentActivities={recentActivities.map((activityObj) => {
-                            // Format the activity string as required
-                            const { activity, timestamp } = activityObj;
-                            return `${activity} (${timestamp})`;
-                        })}
-                    />
+                        <RecentActivities
+                            recentActivities={recentActivities.map((activityObj) => {
+                                // Format the activity string as required
+                                const { activity, timestamp } = activityObj;
+                                return `${activity} (${timestamp})`;
+                            })}
+                        />
                     )}
-                    {selectedContent === null && <NoOptionSelected />}
                 </div>
             </div>
-
         </div>
     );
-};
-
-export default Dashboard;
+    };
+    
+    export default Dashboard;
+    
