@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const argon2 = require('argon2');
+const crypto = require('crypto');
 const { OAuth2Client } = require('google-auth-library');
 const User = require('../models/userSchema');
 require('dotenv').config();
@@ -7,7 +8,6 @@ const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const JWT_SECRET = process.env.JWT_SECRET;
 const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET;
 const { sendRecoveryEmail } = require('../services/sendRecoveryEmail');
-const EMAIL_JWT_EXPIRATION = '1h';
 const frontendUrl = process.env.FRONTEND_URL;
 const { encryptField, encryptEmail, encryptGoogleOauthId, decryptEmail } = require('../utils/encryption');
 const refreshTokens = [];
@@ -151,7 +151,7 @@ exports.loginWithEmailPassword = async (req, res) => {
     await user.update({ last_login: new Date() });
 
     // Set tokens
-    const { token, refreshToken } = setTokens(res, user.id, decryptedEmail);
+    setTokens(res, user.id, decryptedEmail);
 
     return res.status(200).json({ message: 'Login successful', userId: user.id });
   } catch (err) {
@@ -283,6 +283,11 @@ exports.checkAuth = (req, res) => {
 };
 
 // Password Reset
+const hashResetToken = (resetToken) => {
+  return crypto.createHash('sha256').update(resetToken).digest('hex');
+};
+
+// Controller for requesting password reset
 exports.requestPasswordReset = async (req, res) => {
   const { email } = req.body;
 
@@ -291,90 +296,108 @@ exports.requestPasswordReset = async (req, res) => {
   }
 
   try {
-    // Find the user by email
-    console.log('Querying for user with email:', email);
-    const user = await User.findOne({ where: { decryptedEmail } });
+    const encryptedEmail = encryptEmail(email);
+    const user = await User.findOne({ where: { email: encryptedEmail } });
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
+    
+    // Generate a password reset token with userId and purpose
+    const resetToken = jwt.sign({ purpose: 'password-reset', id: user.id }, JWT_SECRET, { expiresIn: '15m' });
 
-    // Check if the user signed in with Google (google_oauth_id is not null)
-    if (user.decryptedGoogleOauthId) {
-      return res.status(400).json({ message: 'Password reset is not available for Google accounts. Please sign in with Google.' });
-    }
+    const resetTokenHash = hashResetToken(resetToken);
+    const resetTokenExpires = new Date(Date.now() + 900000); // 15 mins from now
 
-    // Generate a password reset token using the UUID `id`
-    const resetToken = jwt.sign({ id: user.id }, JWT_SECRET, {
-      expiresIn: EMAIL_JWT_EXPIRATION,
-    });
+    user.resetTokenHash = resetTokenHash;
+    user.resetTokenExpires = resetTokenExpires;
+    await user.save();
 
-    // Construct the reset link
-    const resetLink = `${frontendUrl}/forgot_password/${resetToken}`;
-    console.log(`Generated reset link: ${resetLink}`);
+    const resetLink = `${frontendUrl}/reset-password/${encodeURIComponent(resetToken)}`;
 
-    // Send the recovery email
     try {
       await sendRecoveryEmail(email, resetLink);
-      console.log(`Password reset email sent to: ${email}`);
     } catch (emailError) {
       console.error('Error sending password reset email:', emailError);
       return res.status(500).json({ message: 'Failed to send password reset email. Please try again later.' });
     }
 
-    // Respond with success
     res.status(200).json({ message: 'Password reset link has been sent to your email' });
-  } catch (error) {
-    console.error('Error during password reset request:', error);
+  } catch (err) {
+    console.error('Error processing password reset request:', err);
     res.status(500).json({ message: 'Internal server error' });
   }
 };
+
+// Utility function to verify and decode the reset token
+async function verifyResetTokenLogic(token) {
+  if (!token) {
+    throw new Error('Token is required');
+  }
+
+  const decoded = jwt.verify(token, JWT_SECRET);
+
+  if (!decoded || !decoded.id || decoded.purpose !== 'password-reset') {
+    throw new Error('Invalid token structure or purpose');
+  }
+
+  const user = await User.findOne({ where: { id: decoded.id } });
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  if (user.resetTokenExpires && isTokenExpired(user.resetTokenExpires)) {
+    throw new Error('Reset token has expired');
+  }
+
+  return { decoded, user };
+}
+
+// Controller to verify the reset token
 exports.verifyResetToken = async (req, res) => {
-    const { token } = req.params;
+  const { token } = req.params;
 
-    try {
-        // Verify the reset token
-        const decoded = jwt.verify(token, JWT_SECRET);
-
-        // Optionally: Render a form for the user to enter a new password
-        res.status(200).json({ message: 'Token is valid', data: decoded });
-    } catch (error) {
-        res.status(400).json({ message: 'Invalid or expired token' });
-    }
+  try {
+    // Use the common token verification logic
+    await verifyResetTokenLogic(token);
+    res.status(200).json({ message: 'Token is valid' });
+  } catch (err) {
+    console.error('Error verifying reset token:', err);
+    res.status(400).json({ message: err.message });
+  }
 };
 
-// Update Password 
+// Controller for resetting password
 exports.resetPassword = async (req, res) => {
-    const { token } = req.params;
-    const { newPassword } = req.body;
+  const { token } = req.params;
+  const { newPassword } = req.body;
 
-    try {
-        // Verify the reset token
-        const decoded = jwt.verify(token, JWT_SECRET);
-        const userId = decoded.id;
+  if (!token || !newPassword) {
+    return res.status(400).json({ message: 'Token and new password are required' });
+  }
 
-        // Find user in the database
-        const user = await User.findById(userId);
-        if (!user) {
-            return res.status(400).json({ message: 'User not found' });
-        }
+  try {
+    // Use the common token verification logic
+    const { user } = await verifyResetTokenLogic(token);
 
-        // Validate the new password
-        if (newPassword.length < 8) {
-            return res.status(400).json({ message: 'Password must be at least 8 characters long' });
-        }
+    // Hash the new password and update the user
+    user.password = await argon2.hash(newPassword);
+    user.resetTokenHash = null;
+    user.resetTokenExpires = null;
 
-        const hashedPassword = await argon2.hash(newPassword);
-
-        // Update the user's password
-        user.password = hashedPassword;
-        await user.save();
-
-        res.status(200).json({ message: 'Password reset successful' });
-    } catch (error) {
-        res.status(400).json({ message: 'Invalid or expired token' });
-    }
+    await user.save();
+    res.status(200).json({ message: 'Password reset successfully' });
+  } catch (err) {
+    console.error('Error resetting password:', err);
+    res.status(400).json({ message: err.message });
+  }
 };
+
+// Function to check if the token is expired
+function isTokenExpired(expirationDate) {
+  return new Date() > new Date(expirationDate);
+}
 
 // Logout endpoint
 exports.logout = (req, res) => {

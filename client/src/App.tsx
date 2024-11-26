@@ -8,6 +8,7 @@ import Register from './pages/RegisterPage';
 import ForgotPasswordPage from './pages/ForgetPasswordPage';
 import Dashboard from './pages/DashboardPage';
 import PrivateRoute from './utils/PrivateRoute';
+import ResetPassword from './pages/ResetPassword';
 
 const App: React.FC = () => {
     const username = "sampleUser"; 
@@ -28,7 +29,7 @@ const App: React.FC = () => {
                     <Route path="/login" element={<LoginPage />} />
                     <Route path="/register" element={<Register />} />
                     <Route path="/forgot_password" element={<ForgotPasswordPage />} />
-
+                    <Route path="/reset-password/:token" element={<ResetPassword />} />
                     
                     {/* Wrap Dashboard route with PrivateRoute */}
                     <Route 

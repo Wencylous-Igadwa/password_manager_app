@@ -40,7 +40,7 @@ const Login = () => {
   const handleLogin = async () => {
     setError(null);
     setLoading(true);
-
+  
     const validationError = validateForm();
     if (validationError) {
       setError(validationError);
@@ -49,10 +49,10 @@ const Login = () => {
       setLoading(false);
       return;
     }
-
+  
     try {
       const response = await axiosInstance.post("/auth/login", { email, password });
-
+  
       if (response.status === 200) {
         setSnackbarMessage("Login successful! Redirecting...");
         setOpenSnackbar(true);
@@ -65,12 +65,19 @@ const Login = () => {
       }
     } catch (error) {
       setLoading(false);
-
+  
       if (axios.isAxiosError(error)) {
         if (error.response) {
-          setSnackbarMessage(
-            `Error: ${error.response.status} - ${error.response.data?.message || "An error occurred."}`
-          );
+          // Handle specific status codes
+          if (error.response.status === 401) {
+            setSnackbarMessage("Invalid credentials. Please try again.");
+          } else if (error.response.status === 404) {
+            setSnackbarMessage("User not found, kindly register.");
+          } else {
+            setSnackbarMessage(
+              `Error: ${error.response.status} - ${error.response.data?.message || "An error occurred."}`
+            );
+          }
         } else if (error.request) {
           setSnackbarMessage("Network error. Please try again later.");
         } else {
@@ -83,7 +90,7 @@ const Login = () => {
     } finally {
       setLoading(false);
     }
-  };
+  };  
 
   const handleGoogleLogin = async (credentialResponse: CredentialResponse) => {
     try {

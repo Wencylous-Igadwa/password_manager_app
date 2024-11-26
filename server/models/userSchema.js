@@ -62,6 +62,14 @@ const User = sequelize.define('User', {
     type: DataTypes.STRING(512),
     allowNull: true,
   },
+  resetTokenHash: {
+    type: DataTypes.STRING,
+    allowNull: true, 
+  },
+  resetTokenExpires: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
 }, {
   tableName: 'users', 
   schema: 'app_data', 

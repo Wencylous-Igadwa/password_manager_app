@@ -1,32 +1,14 @@
 const nodemailer = require('nodemailer');
-const { google } = require('googleapis');
 
-// OAuth2 client setup
-const { OAuth2 } = google.auth;
-const oauth2Client = new OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    process.env.REDIRECT_URI
-);
-
-oauth2Client.setCredentials({
-    refresh_token: process.env.GMAIL_REFRESH_TOKEN,
-});
-
-const createTransporter = async () => {
+const createTransporter = () => {
     try {
-        const accessToken = await oauth2Client.getAccessToken();
         return nodemailer.createTransport({
             service: 'gmail',
             auth: {
-                type: 'OAuth2',
                 user: process.env.EMAIL_USERNAME,
-                clientId: process.env.GOOGLE_CLIENT_ID,
-                clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-                refreshToken: process.env.GMAIL_REFRESH_TOKEN,
-                accessToken: accessToken.token,
+                pass: process.env.EMAIL_PASSWORD,
             },
-            timeout: 10000, // 10 seconds timeout
+            timeout: 15000, // 15 seconds timeout
         });
     } catch (error) {
         console.error('Failed to create email transporter:', error);
@@ -42,14 +24,14 @@ const sendRecoveryEmail = async (email, resetLink) => {
     }
 
     try {
-        const transporter = await createTransporter();
+        const transporter = createTransporter();
 
         const mailOptions = {
             from: process.env.EMAIL_USERNAME,
             to: email,
             subject: 'Password Recovery',
             text: `To reset your password, use this link: ${resetLink}`,
-            html: `<p>To reset your password, use this <a href="${resetLink}">link</a>.</p>`,
+            html: `<p>To reset your password, use this <a href="${resetLink}">reset link</a>. <b> Note this link will expire in 15 minutes </p>`,
         };
 
         await transporter.sendMail(mailOptions);

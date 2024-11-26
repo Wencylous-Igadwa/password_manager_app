@@ -112,7 +112,7 @@ const passwordResetLimiter = rateLimit({
   },
 });
 router.post('/password-reset', passwordResetLimiter, requestPasswordReset);
-router.get('/reset-password/:token', verifyResetToken);  // Verify Token
+router.get('/verify-reset/:token', verifyResetToken);  // Verify Token
 router.post('/reset-password/:token', resetPassword);  // Reset Password
 
 // Route for user logout
