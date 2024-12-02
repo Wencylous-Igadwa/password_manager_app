@@ -159,7 +159,7 @@ const Login = () => {
             required
             fullWidth
             id="email"
-            label="Email Address"
+            label="Student Email Address"
             name="email"
             autoFocus
             value={email}

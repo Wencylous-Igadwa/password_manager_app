@@ -171,7 +171,7 @@ const Register = () => {
           <Grid container spacing={2}>
             <Grid item xs={12}>
               <TextField
-                label="Username"
+                label="Registration Number"
                 fullWidth
                 name="username"
                 value={formData.username}
@@ -180,7 +180,7 @@ const Register = () => {
             </Grid>
             <Grid item xs={12}>
               <TextField
-                label="Email Address"
+                label="Student Email Address"
                 fullWidth
                 name="email"
                 value={formData.email}
