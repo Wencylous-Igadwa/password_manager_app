@@ -16,14 +16,13 @@ type PasswordStrengthTableProps = {
 const PasswordStrengthTable: React.FC<PasswordStrengthTableProps> = ({ password }) => {
     const getStrengthClass = (score: number): string => {
         switch (score) {
-            case 0:
-            case 1:
-                return 'strength-weak';
             case 2:
-                return 'strength-moderate';
+                return 'strength-weak';        
             case 3:
-                return 'strength-strong';
+                return 'strength-moderate'; 
             case 4:
+                return 'strength-strong'; 
+            case 5:
                 return 'strength-very-strong';
             default:
                 return '';
@@ -120,7 +119,7 @@ const PasswordStrengthTable: React.FC<PasswordStrengthTableProps> = ({ password 
                                 <div className="strength-bar">
                                     <div
                                         className={`strength-level ${getStrengthClass(entry.score)}`}
-                                        style={{ width: `${(entry.score / 4) * 100}%` }}
+                                        style={{ width: `${(entry.score / 5) * 100}%` }}
                                     ></div>
                                 </div>
                                 <p>{entry.strengthText}</p>

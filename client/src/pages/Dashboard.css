@@ -321,35 +321,29 @@ th {
 .strength-bar {
     width: 100%;
     height: 10px;
-    background-color: #e0e0e0; /* Light gray background */
+    background-color: #e0e0e0;
     border-radius: 5px;
-    overflow: hidden;
-    margin-top: 10px;
 }
 
-/* Bar levels, dynamically adjusted with inline styles */
 .strength-level {
     height: 100%;
-    transition: width 0.3s ease-in-out;
     border-radius: 5px;
-    min-width: 50%; /* minimum width for visibility */
 }
 
-/* Colors based on strength levels */
 .strength-weak {
-    background-color: red; /* Red for weak */
+    background-color: red;
 }
 
 .strength-moderate {
-    background-color: #ffb74d; /* Orange for moderate */
+    background-color: orange;
 }
 
 .strength-strong {
-    background-color: #08d8f3; /* Light blue for strong */
+    background-color: yellowgreen;
 }
 
 .strength-very-strong {
-    background-color: #4caf50;
+    background-color: green;
 }
 
 /* Style suggestions */

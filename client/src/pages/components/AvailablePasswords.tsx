@@ -27,6 +27,7 @@ type AvailablePasswordsProps = {
     exportPasswordsToCSV: () => void;
     handleFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
     passwordStrength?: PasswordStrength;
+    onPasswordClick: (password: string) => void;
 };
 
 const AvailablePasswords: React.FC<AvailablePasswordsProps> = ({
@@ -39,6 +40,7 @@ const AvailablePasswords: React.FC<AvailablePasswordsProps> = ({
     saveEdit,
     cancelEdit,
     handleEdit,
+    copyCredentialsToClipboard,
     deletePassword,
     importing,
     exportPasswordsToCSV,
@@ -129,6 +131,7 @@ const AvailablePasswords: React.FC<AvailablePasswordsProps> = ({
                                     <button onClick={() => togglePasswordVisibility(index)}>
                                         {visiblePasswords[index] ? 'Hide' : 'Show'}
                                     </button>
+                                    <button onClick={() => copyCredentialsToClipboard(index)}>Copy</button>
                                 </>
                             )}
                         </td>
@@ -137,7 +140,7 @@ const AvailablePasswords: React.FC<AvailablePasswordsProps> = ({
             </tbody>
         </table>
 
-        {/* Password Strength */}
+        {/* Password Strength Display */}
         {passwordStrength && (
             <div className="password-strength">
                 <h3>Password Strength</h3>

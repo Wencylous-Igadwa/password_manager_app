@@ -10,7 +10,6 @@ import AddPassword from './components/AddPassword';
 import RecentActivities from './components/RecentActivities';
 import AvailablePasswords from './components/AvailablePasswords';
 import PasswordStrengthTable from './components/PasswordStrengthTable';
-import zxcvbn from 'zxcvbn';
 
 // Define the props interface
 interface Props {
@@ -24,7 +23,7 @@ interface PasswordEntry {
     password: string;
 }
 
-interface PasswordStrengthEntry {
+interface PasswordAnalyzeEntry {
     url: string;
     username: string;
     password: string;
@@ -55,10 +54,51 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
     const [importing, setImporting] = useState(false);
     const [, setError] = useState<string | null>(null);
     const [menuOpen, setMenuOpen] = useState(false);
-    const [passwordstrength, setPasswordstrength] = useState<PasswordStrengthEntry[]>([]);
+    const [passwordStrength, setPasswordStrength] = useState<PasswordAnalyzeEntry[]>([]);
     const [fetchedUsername, setFetchedUsername] = useState<string>(username);
     
+    // Password strength analyzer function
+    const analyzePasswordStrength = (password: string) => {
+        let score = 0;
+        let text = 'Weak';
     
+        if (password.length >= 8) score++;
+        if (/[A-Z]/.test(password)) score++;
+        if (/[a-z]/.test(password)) score++;
+        if (/[0-9]/.test(password)) score++;
+        if (/[^A-Za-z0-9]/.test(password)) score++;
+    
+        switch (score) {
+            case 1:
+            case 2:
+                text = 'Weak';
+                break;
+            case 3:
+                text = 'Moderate';
+                break;
+            case 4:
+                text = 'Strong';
+                break;
+            case 5:
+                text = 'Very Strong';
+                break;
+        }
+    
+        // Update the state with an object that conforms to PasswordStrengthEntry[]
+        setPasswordStrength((prevState) => [
+            ...prevState,
+            {
+                url: '',
+                username: '',
+                password: password,
+                score: score,
+                strengthText: text,
+                suggestions: [] // Add any suggestion logic here if necessary
+            }
+        ]);
+        return { score, text };
+    };       
+
     useEffect(() => {
         // Fetch all credentials data
         const fetchCredentials = async () => {
@@ -73,49 +113,19 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
             }
         };
         
-        const getStrengthText = (score: number): string => {
-            switch (score) {
-                case 0:
-                case 1:
-                    return 'Weak';
-                case 2:
-                    return 'Moderate';
-                case 3:
-                    return 'Strong';
-                case 4:
-                    return 'Very Strong';
-                default:
-                    return 'Unknown';
-            }
-        };
-        
-        const assessPasswordStrength = (password: string) => {
-            const result = zxcvbn(password);
-            return {
-                score: result.score,
-                text: getStrengthText(result.score),
-                suggestions: result.feedback.suggestions,
-            };
-        };
-        const checkPasswordStrength = async () => {
-            try {
-                const response = await axiosInstance.get('/account/fetch-allcreds');
-                if (response.status === 200) {
-                    const evaluatedPasswords = response.data.map((entry: PasswordStrengthEntry) => {
-                        const strength = assessPasswordStrength(entry.password);
-                        return {
-                            ...entry,
-                            score: strength.score,
-                            strengthText: strength.text,
-                            suggestions: strength.suggestions,
-                        };
-                    });
-                    setPasswordstrength(evaluatedPasswords); // Save the evaluated passwords in state
-                }
-            } catch (error) {
-                console.error('Error fetching passwords:', error);
-            }
-        };
+        // Check password strength
+        const checkPasswordStrength = () => {
+            const evaluatedPasswords = passwords.map((entry) => {
+                const strength = analyzePasswordStrength(entry.password);
+                return {
+                    ...entry,
+                    score: strength.score,
+                    strengthText: strength.text,
+                    suggestions: [] // Add suggestions logic here
+                };
+            });
+            setPasswordStrength(evaluatedPasswords); // Save the evaluated passwords in state
+        };  
 
         // Fetch the username from the backend
         const fetchUsername = async () => {
@@ -132,7 +142,7 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
         fetchUsername();
         fetchCredentials();
         checkPasswordStrength();
-    }, []);
+    }, [passwords]);
     
     const handleLogout = async () => {
         try {
@@ -347,6 +357,11 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
             .catch((err) => console.error("Failed to copy text: ", err));
     };
 
+    const handlePasswordClick = (password: string) => {
+        analyzePasswordStrength(password); // This updates the passwordStrength state
+        setSelectedContent('availablePasswords'); // Ensure content is set to show passwords
+    };    
+
     const togglePasswordVisibility = (index: number) => {
         setVisiblePasswords((prev) => ({
             ...prev,
@@ -389,7 +404,7 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
                     {selectedContent === null && (
                         <>
                             <h2>Your Passwords</h2>
-                            <PasswordStrengthTable password={passwordstrength} />
+                            <PasswordStrengthTable password={passwordStrength} />
                         </>
                     )}
                     
@@ -409,6 +424,7 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
                             importing={importing}
                             exportPasswordsToCSV={exportPasswordsToCSV}
                             handleFileUpload={handleFileUpload}
+                            onPasswordClick={handlePasswordClick}
                         />
                     )}
                     {selectedContent === 'addPassword' && (
