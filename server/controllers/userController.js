@@ -20,7 +20,7 @@ exports.getCredentials = async (req, res) => {
   try {
       const { site_url } = req.query;
 
-      // Fetch credentials for the logged-in user with restricted fields
+      // Fetch credentials for the logged-in user
       const whereCondition = { user_id: req.user.userId };
       if (site_url) whereCondition.site_url = site_url;
 

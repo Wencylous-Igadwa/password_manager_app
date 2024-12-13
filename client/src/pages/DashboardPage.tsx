@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './Dashboard.css';
 import Papa from 'papaparse';
 import { useNavigate } from 'react-router-dom';
+import { Dialog, DialogActions, DialogContent, DialogTitle, Button } from '@mui/material';
 import axiosInstance from "../utils/axiosInstance";
-import { getTokensIfNeeded } from "../utils/axiosInstance";
+import { getAuthToken, getCsrfToken } from "../utils/axiosInstance";
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import AddPassword from './components/AddPassword';
@@ -56,6 +57,7 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
     const [menuOpen, setMenuOpen] = useState(false);
     const [passwordStrength, setPasswordStrength] = useState<PasswordAnalyzeEntry[]>([]);
     const [fetchedUsername, setFetchedUsername] = useState<string>(username);
+    const [openDialog, setOpenDialog] = useState(false);
     
     // Password strength analyzer function
     const analyzePasswordStrength = (password: string) => {
@@ -99,8 +101,8 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
         return { score, text };
     };       
 
+    // Fetch all credentials data
     useEffect(() => {
-        // Fetch all credentials data
         const fetchCredentials = async () => {
             try {
                 const response = await axiosInstance.get('/account/fetch-allcreds');
@@ -112,8 +114,12 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
                 setError('Failed to load credentials. Please try again.');
             }
         };
-        
-        // Check password strength
+
+        fetchCredentials();
+    }, []); // Empty dependency array ensures this runs only once
+
+    // Check password strength
+    useEffect(() => {
         const checkPasswordStrength = () => {
             const evaluatedPasswords = passwords.map((entry) => {
                 const strength = analyzePasswordStrength(entry.password);
@@ -121,13 +127,19 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
                     ...entry,
                     score: strength.score,
                     strengthText: strength.text,
-                    suggestions: [] // Add suggestions logic here
+                    suggestions: [], // Add suggestions logic here
                 };
             });
             setPasswordStrength(evaluatedPasswords); // Save the evaluated passwords in state
-        };  
+        };
 
-        // Fetch the username from the backend
+        if (passwords.length > 0) {
+            checkPasswordStrength();
+        }
+    }, [passwords]); // Runs whenever passwords are updated
+
+    // Fetch the username from the backend
+    useEffect(() => {
         const fetchUsername = async () => {
             try {
                 const response = await axiosInstance.get('/account/get-username');
@@ -140,10 +152,8 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
         };
 
         fetchUsername();
-        fetchCredentials();
-        checkPasswordStrength();
-    }, [passwords]);
-    
+    }, []); // Empty dependency array ensures this runs only once
+
     const handleLogout = async () => {
         try {
             await axiosInstance.post('/auth/logout');
@@ -154,12 +164,54 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
             if (typeof onLogout === 'function') {
                 onLogout();
             }
+            setOpenDialog(true); // Open dialog after successful logout
             setTimeout(() => {
                 navigate('/login');
             }, 3000);
         } catch (error) {
             console.error('Error during logout:', error);
             setError('Logout failed. Please try again.');
+        }
+    };
+
+    const addPassword = async () => {
+        if (newUrl && newUsername && newPassword) {
+            try {
+                try {
+                    new URL(newUrl);
+                } catch {
+                    alert('Please enter a valid URL.');
+                    return;
+                }
+
+                const payload = {
+                    site_url: newUrl,
+                    username: newUsername,
+                    password: newPassword,
+                };
+
+                const response = await axiosInstance.post("/account/save-password", payload );
+
+                if (response.status === 201) {
+                    const newEntry = { url: newUrl, username: newUsername, password: newPassword };
+                    setPasswords([...passwords, newEntry]);
+
+                    const timestamp = new Date().toLocaleString();
+                    setRecentActivities([...recentActivities, { activity: `Added password for ${newUsername} at ${newUrl}`, timestamp }]);
+
+                    setNewUrl('');
+                    setNewUsername('');
+                    setNewPassword('');
+
+                    alert("Password added successfully!");
+                } else {
+                    alert("Failed to add password. Please try again.");
+                }
+            } catch {
+                alert('An error occurred. Please try again.');
+            }
+        } else {
+            alert('Please fill in all fields.');
         }
     };
 
@@ -219,49 +271,7 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
             setError('Failed to delete password. Please try again.');
         }
     };
-    const addPassword = async () => {
-        if (newUrl && newUsername && newPassword) {
-            try {
-                try {
-                    new URL(newUrl);
-                } catch {
-                    alert('Please enter a valid URL.');
-                    return;
-                }
-
-                const payload = {
-                    site_url: newUrl,
-                    username: newUsername,
-                    password: newPassword,
-                };
-
-                const { csrfToken } = await getTokensIfNeeded();
-                const response = await axiosInstance.post("/account/save-password", payload, {
-                    headers: { 'X-CSRF-Token': csrfToken },
-                });
-
-                if (response.status === 201) {
-                    const newEntry = { url: newUrl, username: newUsername, password: newPassword };
-                    setPasswords([...passwords, newEntry]);
-
-                    const timestamp = new Date().toLocaleString();
-                    setRecentActivities([...recentActivities, { activity: `Added password for ${newUsername} at ${newUrl}`, timestamp }]);
-
-                    setNewUrl('');
-                    setNewUsername('');
-                    setNewPassword('');
-
-                    alert("Password added successfully!");
-                } else {
-                    alert("Failed to add password. Please try again.");
-                }
-            } catch {
-                alert('An error occurred. Please try again.');
-            }
-        } else {
-            alert('Please fill in all fields.');
-        }
-    };
+    
 
     // Function to generate a random password
     const generatePassword = () => {
@@ -303,12 +313,15 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
             setError(null);
 
             try {
-                const { csrfToken } = await getTokensIfNeeded();
+
+                const csrfToken = await getCsrfToken();
+                const authToken = getAuthToken();
 
                 const response = await axiosInstance.post('/account/import-passwords', formData, {
                     headers: {
                         'Content-Type': 'multipart/form-data',
                         'X-CSRF-Token': csrfToken,
+                        'Authorization': `Bearer ${authToken}`
                     },
                 });
 
@@ -384,6 +397,10 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
         setMenuOpen(!menuOpen);
     };
 
+    const handleCloseDialog = useCallback(() => {
+        setOpenDialog(false);
+    }, []);    
+
     return (
         <div className={`dashboard ${isDarkMode ? 'dark' : 'light'}`}>
             <Navbar 
@@ -450,6 +467,15 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
                     )}
                 </div>
             </div>
+            <Dialog open={openDialog} onClose={handleCloseDialog}>
+                <DialogTitle>Logout Successful</DialogTitle>
+                <DialogContent>
+                    <p>You have logged out successfully!</p>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleCloseDialog} color="primary">Close</Button>
+                </DialogActions>
+            </Dialog>
         </div>
     );
     };

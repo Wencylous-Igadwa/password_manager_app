@@ -1,73 +1,55 @@
-const cryptoKey = crypto.subtle.generateKey(
-  { name: "AES-GCM", length: 256 },
-  true,
-  ["encrypt", "decrypt"]
-);
+// Set the base URL for the fetch requests
+const baseURL = 'http://localhost:3000'; // Replace with your backend URL
 
-// Store encrypted passwords
-chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
-  if (message.type === "savePassword") {
-    const { password, site } = message.data;
-
-    try {
-      const encryptedPassword = await encryptPassword(password);
-      const storageKey = `password_${site}`;
-
-      chrome.storage.local.set({ [storageKey]: encryptedPassword }, () => {
-        sendResponse({ success: true });
-      });
-    } catch (error) {
-      console.error("Error saving password:", error);
-      sendResponse({ success: false, error: error.message });
-    }
-
-    return true; // Indicates async response
-  }
-});
-
-// Retrieve encrypted passwords
-chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
-  if (message.type === "getPassword") {
-    const { site } = message.data;
-
-    chrome.storage.local.get(`password_${site}`, async (result) => {
-      if (result[`password_${site}`]) {
-        try {
-          const decryptedPassword = await decryptPassword(result[`password_${site}`]);
-          sendResponse({ success: true, password: decryptedPassword });
-        } catch (error) {
-          console.error("Error decrypting password:", error);
-          sendResponse({ success: false, error: error.message });
-        }
-      } else {
-        sendResponse({ success: false, error: "Password not found" });
-      }
+// Monitor tab changes and initialize content script injection
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.status === 'complete' && tab.url) {
+    console.log(`Tab updated. Injecting content script into ${tab.url}`);
+    chrome.scripting.executeScript({
+      target: { tabId },
+      files: ['content.js'],
+    })
+    .then(() => {
+      console.log(`Content script injected successfully into ${tab.url}`);
+    })
+    .catch((error) => {
+      console.error('Failed to execute script:', error);
     });
-
-    return true;
   }
 });
 
-// Encrypt password
-async function encryptPassword(password) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const iv = crypto.getRandomValues(new Uint8Array(12));
+// Listener for fetching credentials
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log('Received message:', message);
 
-  const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, cryptoKey, data);
-  return { iv: Array.from(iv), encrypted: Array.from(new Uint8Array(encrypted)) };
-}
+  if (message.action === 'fetchCredentials') {
+    console.log(`Fetching credentials for URL: ${message.url}`);
 
-// Decrypt password
-async function decryptPassword(encryptedData) {
-  const decoder = new TextDecoder();
-  const { iv, encrypted } = encryptedData;
+    // Use an immediately invoked async function to handle the network request
+    (async () => {
+      try {
+        const response = await fetch(`${baseURL}/fetch-credentia`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ url: message.url }),
+          credentials: 'include', // Ensure credentials (cookies) are sent with requests if necessary
+        });
 
-  const decrypted = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: new Uint8Array(iv) },
-    cryptoKey,
-    new Uint8Array(encrypted)
-  );
+        const data = await response.json();
+        if (response.ok) {
+          console.log('Credentials fetched successfully:', data);
+          sendResponse(data);
+        } else {
+          throw new Error(data.message || 'Failed to fetch credentials.');
+        }
+      } catch (error) {
+        console.error('Error fetching credentials:', error);
+        sendResponse({ error: error.message || 'Failed to fetch credentials.' });
+      }
+    })();
 
-  return decoder.decode(decrypted);
-}
+    return true; // Keep the message channel open while the async operation is ongoing
+  }
+});
