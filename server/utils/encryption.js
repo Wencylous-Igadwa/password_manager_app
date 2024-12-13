@@ -7,9 +7,9 @@ const STATIC_GOOGLE_OAUTH_IV = Buffer.from(process.env.STATIC_GOOGLE_OAUTH_IV, '
 const ALGORITHM = 'aes-256-cbc';
 
 // Encrypt function
-exports.encryptField = (field) => {
+exports.encryptField = (field, iv = null) => {
     if (!field) return { encryptedField: null, iv: null }; 
-    const iv = crypto.randomBytes(16); // AES block size is 16 bytes
+    iv = iv ? Buffer.from(iv, 'hex') : crypto.randomBytes(16); // Use provided IV or generate a new one
     const cipher = crypto.createCipheriv(ALGORITHM, SECRET_KEY, iv);
     let encrypted = cipher.update(field, 'utf8', 'hex');
     encrypted += cipher.final('hex');

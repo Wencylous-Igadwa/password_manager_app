@@ -41,14 +41,15 @@ router.post('/update-password', verifyToken, csrfProtection, async (req, res, ne
     // Ensure the request body is valid for password change
     const { error } = Joi.object({
       id: Joi.string().required().uuid(),
-      newPassword: Joi.string().required().min(6).message('Password should be at least 6 characters long'),
+      newPassword: Joi.string().required().min(6).regex(/[a-zA-Z0-9]/).message('Password should be at least 6 characters long and contain letters and numbers'),
     }).validate(req.body);
 
     if (error) {
       return res.status(400).json({ error: error.details[0].message });
     }
 
-    await updatePassword(req, res, next);
+    // Call the updatePassword function
+    await updatePassword(req, res);
   } catch (err) {
     next(err);
   }
@@ -57,15 +58,17 @@ router.post('/update-password', verifyToken, csrfProtection, async (req, res, ne
 // Delete password - Protected route
 router.delete('/delete-password', verifyToken, csrfProtection, async (req, res, next) => {
   try {
-    // Ensure the request body is valid for deleting a password
+    // Validate request body to ensure username and url are provided
     const { error } = Joi.object({
-      id: Joi.string().required().uuid(),
+      username: Joi.string().required(),
+      site_url: Joi.string().uri().required(),
     }).validate(req.body);
 
     if (error) {
       return res.status(400).json({ error: error.details[0].message });
     }
 
+    // Proceed to the controller function to delete the password
     await deletePassword(req, res, next);
   } catch (err) {
     next(err);

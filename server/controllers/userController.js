@@ -89,74 +89,125 @@ exports.fetchAllCreds = async (req, res) => {
 
 // Update password
 exports.updatePassword = async (req, res) => {
-  try {
-      const { id, newPassword, newSiteUrl, newUsername, newNote } = req.body;
-
-      if (!id || !newPassword || !newSiteUrl || !newUsername) {
-          return res.status(400).json({ message: 'Credential ID, new site URL, new username, and new password are required' });
-      }
-
-      // Find the credential by ID
-      const credential = await Credential.findOne({
-          where: { id, user_id: req.user.userId },
-      });
-
-      if (!credential) {
-          return res.status(404).json({ message: 'Credential not found' });
-      }
-
-      // Encrypt the new values (password, site_url, username, note)
-      const { encryptedPassword, iv: passwordIv } = encryptPassword(newPassword);
-      const { encryptedSiteUrl, iv: urlIv } = encryptPassword(newSiteUrl);
-      const { encryptedUsername, iv: usernameIv } = encryptPassword(newUsername);
-      const { encryptedNote, iv: noteIv } = encryptPassword(newNote);
-
-      // Update the credential fields with encrypted values and their IVs
-      credential.password = encryptedPassword;
-      credential.iv = passwordIv;
-      credential.site_url = encryptedSiteUrl;
-      credential.url_iv = urlIv;
-      credential.username = encryptedUsername;
-      credential.username_iv = usernameIv;
-      credential.note = encryptedNote;
-      credential.note_iv = noteIv;
-
-      await credential.save();
-
-      res.status(200).json({ message: 'Password and related fields updated successfully' });
-  } catch (error) {
-      console.error('Error updating password:', error);
-      res.status(500).json({ message: 'Failed to update password' });
-  }
-};
-
+    try {
+        const { id, newPassword, newSiteUrl, newUsername, newNote } = req.body;
+  
+        if (!id || !newPassword || !newSiteUrl || !newUsername) {
+            return res.status(400).json({ message: 'Credential ID, new site URL, new username, and new password are required' });
+        }
+  
+        // Encrypt the new input fields (newUsername, newSiteUrl) to compare with encrypted data in DB
+        const { encryptedUsername } = encryptField(newUsername, credential.username_iv);
+        const { encryptedSiteUrl } = encryptField(newSiteUrl, credential.url_iv);
+  
+        // Find the credential by ID using encrypted username and site_url
+        const credential = await Credential.findOne({
+            where: { 
+                id, 
+                user_id: req.user.userId,
+                username: encryptedUsername,
+                site_url: encryptedSiteUrl,
+            },
+        });
+  
+        if (!credential) {
+            return res.status(404).json({ message: 'Credential not found' });
+        }
+  
+        // Initialize update fields and IVs
+        const updatedFields = {};
+        
+        // Encrypt and update password if provided
+        if (newPassword) {
+            const { encryptedPassword, iv: passwordIv } = encryptPassword(newPassword);
+            updatedFields.password = encryptedPassword;
+            updatedFields.iv = passwordIv;
+        }
+        
+        // Encrypt and update site_url if provided
+        if (newSiteUrl) {
+            const { encryptedSiteUrl, iv: urlIv } = encryptPassword(newSiteUrl);
+            updatedFields.site_url = encryptedSiteUrl;
+            updatedFields.url_iv = urlIv;
+        }
+        
+        // Encrypt and update username if provided
+        if (newUsername) {
+            const { encryptedUsername, iv: usernameIv } = encryptPassword(newUsername);
+            updatedFields.username = encryptedUsername;
+            updatedFields.username_iv = usernameIv;
+        }
+        
+        // Encrypt and update note if provided
+        if (newNote) {
+            const { encryptedNote, iv: noteIv } = encryptPassword(newNote);
+            updatedFields.note = encryptedNote;
+            updatedFields.note_iv = noteIv;
+        }
+  
+        // Update the credential fields with encrypted values
+        await credential.update(updatedFields);
+  
+        res.status(200).json({ message: 'Password and related fields updated successfully' });
+    } catch (error) {
+        console.error('Error updating password:', error);
+        res.status(500).json({ message: 'Failed to update password' });
+    }
+};   
 
 // Delete a credential
 exports.deletePassword = async (req, res) => {
-  try {
-      const { id } = req.body;
+    try {
+        const { username, site_url } = req.body;
 
-      if (!id) {
-          return res.status(400).json({ message: 'Credential ID is required' });
-      }
+        // Check if username and URL are provided
+        if (!username || !site_url) {
+            return res.status(400).json({ message: 'Username and URL are required' });
+        }
 
-      // Find the credential by ID
-      const credential = await Credential.findOne({
-          where: { id, user_id: req.user.userId },
-      });
+        // Fetch all credentials for the user
+        const credentials = await Credential.findAll({
+            where: {
+                user_id: req.user.userId,
+            },
+            attributes: ['id', 'username', 'site_url', 'username_iv', 'url_iv'],
+        });
 
-      if (!credential) {
-          return res.status(404).json({ message: 'Credential not found' });
-      }
+        // If no credentials are found, return a 404 response
+        if (credentials.length === 0) {
+            console.log('No credentials found');
+            return res.status(404).json({ message: 'No credentials found' });
+        }
 
-      // Delete the credential
-      await credential.destroy();
+        // Iterate through each credential to find the matching one
+        let credentialToDelete = null;
 
-      res.status(200).json({ message: 'Credential deleted successfully' });
-  } catch (error) {
-      console.error('Error deleting credential:', error);
-      res.status(500).json({ message: 'Failed to delete credential' });
-  }
+        for (const credential of credentials) {
+            // Decrypt the stored username and site_url
+            const decryptedUsername = decryptField(credential.username, credential.username_iv);
+            const decryptedSiteUrl = decryptField(credential.site_url, credential.url_iv);
+
+            // Check if the decrypted fields match the provided values
+            if (decryptedUsername === username && decryptedSiteUrl === site_url) {
+                credentialToDelete = credential;
+                break;  // Stop once the matching credential is found
+            }
+        }
+
+        // If no matching credential is found, return a 404 response
+        if (!credentialToDelete) {
+            console.log('Credential not found');
+            return res.status(404).json({ message: 'Credential does not match' });
+        }
+
+        // Now that the credential matches, delete it
+        await credentialToDelete.destroy();
+
+        res.status(200).json({ message: 'Credential deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting credential:', error);
+        res.status(500).json({ message: 'Failed to delete credential' });
+    }
 };
 
 // Save a single credential

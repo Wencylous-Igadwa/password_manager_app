@@ -173,7 +173,6 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
             setError('Logout failed. Please try again.');
         }
     };
-
     const addPassword = async () => {
         if (newUrl && newUsername && newPassword) {
             try {
@@ -183,26 +182,36 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
                     alert('Please enter a valid URL.');
                     return;
                 }
-
+    
                 const payload = {
                     site_url: newUrl,
                     username: newUsername,
                     password: newPassword,
                 };
-
-                const response = await axiosInstance.post("/account/save-password", payload );
-
+    
+                const response = await axiosInstance.post("/account/save-password", payload);
+    
                 if (response.status === 201) {
-                    const newEntry = { url: newUrl, username: newUsername, password: newPassword };
+                    // Assuming the response contains the newly created password
+                    const newEntry = { 
+                        url: newUrl, 
+                        username: newUsername, 
+                        password: newPassword 
+                    };
+    
                     setPasswords([...passwords, newEntry]);
-
+    
                     const timestamp = new Date().toLocaleString();
-                    setRecentActivities([...recentActivities, { activity: `Added password for ${newUsername} at ${newUrl}`, timestamp }]);
-
+                    setRecentActivities([
+                        ...recentActivities,
+                        { activity: `Added password for ${newUsername} at ${newUrl}`, timestamp }
+                    ]);
+    
+                    // Reset the form fields
                     setNewUrl('');
                     setNewUsername('');
                     setNewPassword('');
-
+    
                     alert("Password added successfully!");
                 } else {
                     alert("Failed to add password. Please try again.");
@@ -213,14 +222,48 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
         } else {
             alert('Please fill in all fields.');
         }
-    };
+    };    
 
-    const deletePassword = (index: number) => {
-        const updatedPasswords = passwords.filter((_, i) => i !== index);
-        setPasswords(updatedPasswords);
-        deletePasswordFromDatabase(passwords[index]);
+    const deletePassword = async (index: number) => {
+        try {
+            const passwordToDelete = passwords[index];
+    
+            // Show confirmation prompt before deletion
+            const isConfirmed = window.confirm(`Are you sure you want to delete the password for ${passwordToDelete.username} at ${passwordToDelete.url}?`);
+    
+            if (!isConfirmed) return; // If not confirmed, do nothing
+    
+            // First, delete the password from the database (we no longer need to check for id)
+            await deletePasswordFromDatabase(passwordToDelete);
+    
+            // Then, remove it from the local state
+            const updatedPasswords = passwords.filter((_, i) => i !== index);
+            setPasswords(updatedPasswords);
+    
+            // Log the activity
+            const timestamp = new Date().toLocaleString();
+            setRecentActivities([
+                ...recentActivities,
+                { activity: `Deleted password for ${passwordToDelete.username} at ${passwordToDelete.url}`, timestamp },
+            ]);
+        } catch (error) {
+            // Handle any errors that occur during the deletion
+            console.error('Failed to delete password:', error);
+            setError('Failed to delete password. Please try again.');
+        }
     };
-
+    
+    const deletePasswordFromDatabase = async (passwordEntry: PasswordEntry) => {
+        try {
+            await axiosInstance.delete('/account/delete-password', {
+                data: { username: passwordEntry.username, site_url: passwordEntry.url },
+            });
+        } catch (error) {
+            console.error('Failed to delete password:', error);
+            setError('Failed to delete password. Please try again.');
+        }
+    };    
+    
     const handleEdit = (index: number) => {
         setEditIndex(index);
         setEditedEntry(passwords[index]);
@@ -260,19 +303,7 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
             setError('Failed to update password. Please try again.');
         }
     };
-
-    const deletePasswordFromDatabase = async (passwordEntry: PasswordEntry) => {
-        try {
-            await axiosInstance.delete('/account/delete-password', {
-                data: passwordEntry,
-            });
-        } catch (error) {
-            console.error('Failed to delete password:', error);
-            setError('Failed to delete password. Please try again.');
-        }
-    };
     
-
     // Function to generate a random password
     const generatePassword = () => {
         const length = 12;
