@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="popup-styles.css">
-  <script src="lib/gsi-client.js" async defer></script>
   <title>Key Bag Password Manager</title>
 </head>
 <body>
@@ -17,7 +16,10 @@
   </form>
 
   <!-- Google login button -->
-  <div id="google-login"></div>
+  <button id="login-with-google-btn" class="google-login-button">
+    <img src="https://www.cdnlogo.com/logos/g/35/google-icon.svg" alt="Google Logo" class="google-logo">
+    Login with Google
+  </button>
 
   <!-- Link to open website (optional) -->
   <a href="http://localhost:5173/login" target="_blank" id="open-website-link">Open in Website</a>

@@ -6,6 +6,9 @@ const getFullUrl = (path) => new URL(path, baseURL).href;
 // Bind event listeners to login forms and buttons
 document.getElementById('master-password-form').addEventListener('submit', handleMasterPasswordLogin);
 
+// Bind event listener to the Google Login button
+document.getElementById('login-with-google-btn').addEventListener('click', initializeGoogleAuth);
+
 // Fetching CSRF token
 let csrfTokenCache = null;
 const getCsrfToken = async () => {
@@ -30,7 +33,7 @@ const getCsrfToken = async () => {
   }
 };
 
-// Initialize the Google API client
+// Initialize the Google authentication flow using the Chrome Identity API
 async function initializeGoogleAuth() {
   try {
     const csrfToken = await getCsrfToken();
@@ -39,54 +42,85 @@ async function initializeGoogleAuth() {
       throw new Error('CSRF token is not available');
     }
 
-    if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
-      const response = await fetch(getFullUrl('/api/google-client-id'), {
-        method: 'GET',
-        headers: {
-          'X-CSRF-Token': csrfToken,
-        },
-      });
+    // Fetch the client ID from the backend
+    const response = await fetch(getFullUrl('/api/google-client-id'), {
+      method: 'GET',
+      headers: {
+        'X-CSRF-Token': csrfToken,
+      },
+    });
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch Google client ID');
-      }
-
-      const { client_id } = await response.json();
-
-      google.accounts.id.initialize({
-        client_id: client_id,
-        callback: onGoogleSignIn,
-        scope: 'profile email',
-      });
-
-      renderGoogleSignInButton();
-    } else {
-      console.error('Google API client not loaded.');
+    if (!response.ok) {
+      throw new Error('Failed to fetch Google client ID');
     }
+
+    const { client_id } = await response.json();
+
+    // Generate a nonce (a random string)
+    const nonce = Math.random().toString(36).substring(2); // Random string, you can use a more secure method
+
+    // Log the nonce before storing it
+    console.log("Storing nonce in sessionStorage:", nonce);
+
+    // Store the nonce in the sessionStorage to validate it later
+    sessionStorage.setItem('nonce', nonce);
+
+    // Set up the Google OAuth URL with the nonce
+    const redirectUri = `https://lajmgfplodciodcddgaofpnincbpakmc.chromiumapp.org/`;
+    const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+      `client_id=${client_id}&` +
+      `response_type=id_token&` +
+      `scope=profile email&` +
+      `redirect_uri=${redirectUri}&` +
+      `nonce=${nonce}`;
+
+    console.log("OAuth URL:", oauthUrl); // Log the OAuth URL to verify it
+
+    // Launch the OAuth flow
+    chrome.identity.launchWebAuthFlow(
+      {
+        url: oauthUrl,
+        interactive: true,
+      },
+      function(redirectUrl) {
+        console.log('Redirect URL:', redirectUrl); // Log the returned redirect URL
+
+        // Ensure the redirect URL has the fragment part containing the id_token and nonce
+        const urlHash = new URL(redirectUrl).hash; // URL fragment
+        if (!urlHash) {
+          console.error('No URL hash found in the redirect URL');
+          return;
+        }
+
+        const urlParams = new URLSearchParams(urlHash.substring(1)); // Remove the '#' from the hash
+        const idToken = urlParams.get('id_token');  // Get the id_token
+        const returnedNonce = urlParams.get('nonce');  // Get the nonce from the response
+
+        // Log the returned nonce and the stored nonce
+        const storedNonce = sessionStorage.getItem('nonce');
+        console.log("Returned nonce:", returnedNonce, "Stored nonce:", storedNonce);
+
+        // Validate the nonce
+        if (returnedNonce !== storedNonce) {
+          console.error('Nonce mismatch: potential replay attack');
+        } else if (idToken) {
+          onGoogleSignInWithIdToken(idToken);  // Handle login with id_token
+        } else {
+          console.error('Google OAuth failed: No id_token received');
+        }
+
+        // Clear nonce after use
+        sessionStorage.removeItem('nonce');
+      }
+    );
   } catch (error) {
     console.error('Error initializing Google Auth:', error);
   }
 }
 
-// Render the Google Sign-In button
-function renderGoogleSignInButton() {
-  google.accounts.id.renderButton(
-    document.getElementById('google-login'),
-    {
-      theme: 'outline',
-      size: 'large',
-    }
-  );
-}
-
 // Handle Google Sign-In success
-async function onGoogleSignIn(response) {
+async function onGoogleSignInWithIdToken(idToken) {
   try {
-    if (!response.credential) {
-      throw new Error('No credential provided in response');
-    }
-
-    const googleToken = response.credential;
     const csrfToken = await getCsrfToken();
 
     const res = await fetch(getFullUrl('/auth/login/google'), {
@@ -95,7 +129,7 @@ async function onGoogleSignIn(response) {
         'Content-Type': 'application/json',
         'X-CSRF-Token': csrfToken,
       },
-      body: JSON.stringify({ googleToken }),
+      body: JSON.stringify({ googleToken: idToken }), // Send id_token to the backend
       credentials: 'include',
     });
 
@@ -106,7 +140,7 @@ async function onGoogleSignIn(response) {
       document.cookie = `refreshToken=${data.refreshToken}; path=/; max-age=604800`; // 7-day expiration
 
       document.getElementById('status').textContent = "Google login successful. Redirecting...";
-      
+
       setTimeout(() => {
         chrome.storage.local.set({ userEmail: data.email }, () => {
           initializeAutoFill();
@@ -196,8 +230,3 @@ function setLoadingState(isLoading, statusMessage = '') {
     spinner.classList.remove('active');
   }
 }
-
-// Initialize Google Auth and render the button when the page is loaded
-document.addEventListener('DOMContentLoaded', () => {
-  initializeGoogleAuth();
-});

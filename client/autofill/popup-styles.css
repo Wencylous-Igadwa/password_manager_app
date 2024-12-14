@@ -6,8 +6,13 @@ body {
   width: 300px;
   background-color: #f9f9f9;
   color: #333;
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* Center align all child elements horizontally */
+  justify-content: center; /* Center align all child elements vertically */
 }
 
+/* Heading style */
 h1 {
   font-size: 18px;
   text-align: center;
@@ -15,12 +20,15 @@ h1 {
   margin-bottom: 20px;
 }
 
+/* Form container */
 form {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: center; /* Center form elements */
+  width: 100%;
 }
 
+/* Input field style */
 #master-password {
   width: 90%;
   padding: 8px;
@@ -29,6 +37,7 @@ form {
   border-radius: 4px;
 }
 
+/* Button style */
 button {
   width: 90%;
   padding: 10px;
@@ -38,6 +47,7 @@ button {
   color: white;
   font-size: 14px;
   cursor: pointer;
+  margin-bottom: 15px;
 }
 
 button:hover {
@@ -50,10 +60,48 @@ button:disabled {
   cursor: not-allowed;
 }
 
-/* Google login button */
-#google-login {
-  margin: 10px auto;
+/* Container for the Google login button */
+.google-login-button-container {
+  display: flex;
+  justify-content: center; /* Center align the Google button */
+  width: 130%;
+  margin-top: 10px;
+}
+
+/* Google login button style */
+.google-login-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 20px;
+  border: 1px solid #a9f57d;
+  border-radius: 5px;
+  background-color: #e8f3f0;
+  color: #000000;
+  font-size: 16px;
+  font-weight: 500;
   text-align: center;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  width: 100%;
+  max-width: 250px;
+  height: 40px;
+}
+
+.google-login-button:hover {
+  background-color: #c4e047;
+}
+
+/* Google logo styling */
+.google-logo {
+  width: 20px;
+  height: 20px;
+  margin-right: 10px;
+}
+
+/* Optional: Style for text within button */
+.google-login-button span {
+  display: inline-block;
 }
 
 /* Link styling */

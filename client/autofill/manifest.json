@@ -7,7 +7,8 @@
     "scripting",
     "activeTab",
     "tabs",
-    "webNavigation"
+    "webNavigation",
+    "identity"
   ],
   "host_permissions": [
     "<all_urls>"
