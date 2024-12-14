@@ -1,9 +1,17 @@
 {
   "manifest_version": 3,
-  "name": "Password Manager Extension",
+  "name": "Key Bag Password Manager",
   "version": "1.0.0",
-  "permissions": ["storage", "scripting", "activeTab", "webNavigation"],
-  "host_permissions": ["<all_urls>"],
+  "permissions": [
+    "storage",
+    "scripting",
+    "activeTab",
+    "tabs",
+    "webNavigation"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "background": {
     "type": "module",
     "service_worker": "background.js"
@@ -11,6 +19,9 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
+      "exclude_matches": [
+        "https://accounts.google.com/signin/oauth/*"
+      ],
       "js": ["content.js"],
       "run_at": "document_end"
     }
@@ -27,5 +38,8 @@
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
   }
 }

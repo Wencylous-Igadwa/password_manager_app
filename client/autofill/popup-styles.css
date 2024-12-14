@@ -1,0 +1,93 @@
+/* General styles */
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 10px;
+  width: 300px;
+  background-color: #f9f9f9;
+  color: #333;
+}
+
+h1 {
+  font-size: 18px;
+  text-align: center;
+  color: #0078d7;
+  margin-bottom: 20px;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+#master-password {
+  width: 90%;
+  padding: 8px;
+  margin-bottom: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+button {
+  width: 90%;
+  padding: 10px;
+  border: none;
+  border-radius: 4px;
+  background-color: #0078d7;
+  color: white;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #005bb5;
+}
+
+/* Disabled button state */
+button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+/* Google login button */
+#google-login {
+  margin: 10px auto;
+  text-align: center;
+}
+
+/* Link styling */
+#open-website-link {
+  display: block;
+  text-align: center;
+  margin-top: 15px;
+  font-size: 14px;
+  color: #0078d7;
+  text-decoration: none;
+}
+
+#open-website-link:hover {
+  text-decoration: underline;
+}
+
+/* Status message */
+#status {
+  margin-top: 15px;
+  text-align: center;
+  font-size: 12px;
+  color: #555;
+}
+
+/* Loading Spinner */
+#loading-spinner {
+  display: none;
+  margin-top: 15px;
+  text-align: center;
+  font-size: 14px;
+  color: #0078d7;
+}
+
+/* Show spinner when active */
+#loading-spinner.active {
+  display: inline-block;
+}

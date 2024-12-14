@@ -1,9 +1,8 @@
-// Set the base URL for the fetch requests
-const baseURL = 'http://localhost:3000'; // Replace with your backend URL
+const baseURL = 'http://localhost:3000'; 
 
 // Monitor tab changes and initialize content script injection
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' && tab.url) {
+  if (changeInfo.status === 'complete' && tab.url && !tab.url.startsWith('chrome://')) {
     console.log(`Tab updated. Injecting content script into ${tab.url}`);
     chrome.scripting.executeScript({
       target: { tabId },
@@ -15,6 +14,8 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     .catch((error) => {
       console.error('Failed to execute script:', error);
     });
+  } else if (tab.url && tab.url.startsWith('chrome://')) {
+    console.log(`Skipping content script injection for chrome:// page: ${tab.url}`);
   }
 });
 
@@ -24,23 +25,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.action === 'fetchCredentials') {
     console.log(`Fetching credentials for URL: ${message.url}`);
-
-    // Use an immediately invoked async function to handle the network request
     (async () => {
       try {
-        const response = await fetch(`${baseURL}/fetch-credentia`, {
+        // Send a request to the backend to fetch credentials for the current site
+        const response = await fetch(`${baseURL}/account/get-credentials`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ url: message.url }),
-          credentials: 'include', // Ensure credentials (cookies) are sent with requests if necessary
+          body: JSON.stringify({ url: message.url }),  // Pass the URL of the site
+          credentials: 'include', // Ensure cookies are sent with the request if necessary
         });
 
         const data = await response.json();
+
         if (response.ok) {
           console.log('Credentials fetched successfully:', data);
-          sendResponse(data);
+          sendResponse({ credentials: data.credentials });
         } else {
           throw new Error(data.message || 'Failed to fetch credentials.');
         }
@@ -49,7 +50,36 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ error: error.message || 'Failed to fetch credentials.' });
       }
     })();
+    return true;
+  }
 
-    return true; // Keep the message channel open while the async operation is ongoing
+  if (message.action === 'saveCredentials') {
+    console.log(`Saving credentials for username: ${message.username}`);
+    (async () => {
+      try {
+        const response = await fetch(`${baseURL}/account/save-credentials`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            username: message.username,
+            password: message.password,
+          }),
+          credentials: 'include',
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+          console.log('Credentials saved successfully:', data);
+        } else {
+          throw new Error(data.message || 'Failed to save credentials.');
+        }
+      } catch (error) {
+        console.error('Error saving credentials:', error);
+      }
+    })();
+    sendResponse({ status: 'Credentials saved successfully' });
   }
 });

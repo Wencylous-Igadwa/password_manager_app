@@ -1,19 +1,30 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Password Manager</title>
-    <script type="module" src="popup.js" defer></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="popup-styles.css">
+  <script src="lib/gsi-client.js" async defer></script>
+  <title>Key Bag Password Manager</title>
 </head>
 <body>
-  <h1>Password Manager</h1>
+  <h1>Key Bag Password Manager</h1>
+
+  <!-- Master password login form -->
   <form id="master-password-form">
     <input type="password" id="master-password" placeholder="Enter Master Password" required />
     <button type="submit">Login</button>
   </form>
-  <button id="google-login">Login with Google</button>
+
+  <!-- Google login button -->
+  <div id="google-login"></div>
+
+  <!-- Link to open website (optional) -->
   <a href="http://localhost:5173/login" target="_blank" id="open-website-link">Open in Website</a>
+
+  <!-- Status message -->
   <p id="status"></p>
+  <div id="loading-spinner" class="active">Loading...</div>
+  <script src="popup.js"></script>
 </body>
 </html>
