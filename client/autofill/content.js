@@ -1,90 +1,130 @@
-// Function to check if the current page is part of Google's OAuth login flow
-function isGoogleOAuthPage() {
-  const url = window.location.href;
-  return url.includes('accounts.google.com/signin/oauth');
-}
+// Initialize the content script when the page is loaded
+window.addEventListener('load', () => {
+  console.log('Page loaded, initializing content script...');
+  initializeContentScript();
+});
 
-// Identify login fields dynamically
+// Detect login fields dynamically
 function detectLoginFields() {
-  const fields = {};
-  fields.username = document.querySelector('input[type="email"], input[type="text"]');
-  fields.password = document.querySelector('input[type="password"]');
-  return fields;
+  return {
+    username: document.querySelector('input[type="email"], input[type="text"]'),
+    password: document.querySelector('input[type="password"]'),
+  };
 }
 
-// Auto-fill detected fields
-function autoFillFields(credentials) {
-  const fields = detectLoginFields();
-  
-  if (fields.username && fields.password) {
-    fields.username.value = credentials.username;
-    fields.password.value = credentials.password;
-  } else {
-    console.warn('Could not auto-fill fields, missing username or password field.');
+// Show autofill icon when a form or input field is clicked
+function showAutoFillIcon(target) {
+  // Check if the icon already exists and remove it to prevent duplicates
+  let existingIcon = document.getElementById('autoFillIcon');
+  if (existingIcon) {
+    existingIcon.remove();
   }
-}
 
-// Check if credentials are stored for the current site
-function checkStoredCredentials() {
-  const url = window.location.origin;
-  chrome.runtime.sendMessage({ action: 'fetchCredentials', url }, (response) => {
-    if (response && response.credentials) {
-      console.log('Credentials found, attempting to auto-fill...');
-      autoFillFields(response.credentials);
-    } else if (response && response.error) {
-      console.error('Error fetching credentials:', response.error);
-    } else {
-      console.warn('No stored credentials found for this site.');
+  // Create a new icon div
+  const icon = document.createElement('div');
+  icon.id = 'autoFillIcon';
+
+  // Use the custom key emoji icon
+  icon.textContent = '🔑';
+
+  // Function to update icon position based on target field
+  function positionIcon() {
+    const targetRect = target.getBoundingClientRect();
+    const targetLeft = targetRect.left + window.scrollX;
+    const targetTop = targetRect.top + window.scrollY;
+
+    // Adjust the icon's position to the right of the form field
+    icon.style.position = 'absolute';
+    icon.style.top = `${targetTop + (targetRect.height / 2) - (icon.offsetHeight / 2)}px`;  // Vertically center the icon relative to the field
+    icon.style.left = `${targetLeft + targetRect.width + 10}px`;  // Position the icon to the right of the field with a 10px margin
+
+    // Ensure the icon stays on screen (adjust if necessary)
+    const iconRect = icon.getBoundingClientRect();
+    if (iconRect.right > window.innerWidth) {
+      icon.style.left = `${window.innerWidth - iconRect.width - 10}px`; // Prevent overflow beyond the viewport
     }
+
+    if (iconRect.bottom > window.innerHeight) {
+      icon.style.top = `${window.innerHeight - iconRect.height - 10}px`; // Prevent overflow beyond the viewport vertically
+    }
+  }
+
+  // Initially position the icon
+  positionIcon();
+
+  // Update icon position on window resize or scroll
+  window.addEventListener('resize', positionIcon);
+  window.addEventListener('scroll', positionIcon);
+
+  // Style the icon container with animations
+  icon.style.cursor = 'pointer';
+  icon.style.zIndex = '9999';
+  icon.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+  icon.style.borderRadius = '50%';
+  icon.style.padding = '10px';
+  icon.style.transition = 'transform 0.3s ease-in-out, opacity 0.3s ease-in-out';  // Smooth transition effects
+
+  // Append the icon to the body
+  document.body.appendChild(icon);
+
+  // Optional: Add an event listener for the icon click to open the popup
+  icon.addEventListener('click', () => {
+    chrome.runtime.sendMessage({ action: 'openPopup' });
+  });
+
+  // Remove the icon when the mouse leaves both the target field and the icon
+  const removeIconOnHover = (event) => {
+    if (!target.contains(event.target) && !icon.contains(event.target)) {
+      icon.remove();  // Remove the icon when user hovers away from the field or icon
+      target.removeEventListener('mouseleave', removeIconOnHover);  // Cleanup the hover listener
+      icon.removeEventListener('mouseleave', removeIconOnHover);  // Cleanup the hover listener for icon
+    }
+  };
+
+  // Add hover event listeners to both the target and the icon
+  target.addEventListener('mouseenter', () => {
+    // Reposition the icon when hovering over the field
+    positionIcon();
+    icon.style.display = 'block';  // Show the icon
+  });
+
+  target.addEventListener('mouseleave', (event) => {
+    // Only trigger icon removal if mouse leaves both the field and the icon
+    removeIconOnHover(event);
+  });
+
+  icon.addEventListener('mouseenter', () => {
+    icon.style.display = 'block';  // Ensure the icon stays visible when hovering over it
+  });
+
+  icon.addEventListener('mouseleave', (event) => {
+    // Only trigger icon removal if mouse leaves both the field and the icon
+    removeIconOnHover(event);
   });
 }
 
-// Handle field click or focus to detect login fields and check credentials
-function setupFieldListeners() {
-  const fields = detectLoginFields();
-
-  if (fields.username) {
-    fields.username.addEventListener('focus', () => {
-      checkStoredCredentials();
-    });
-  }
-
-  if (fields.password) {
-    fields.password.addEventListener('focus', () => {
-      checkStoredCredentials();
-    });
+// Detect clicks on forms or input fields
+function detectFormClick(event) {
+  const form = event.target.closest('form');
+  if (form) {
+    showAutoFillIcon(event.target);
   }
 }
 
-// Detect login page and request credentials when fields are focused
-window.addEventListener('load', () => {
-  // Prevent injection on Google OAuth pages
-  if (isGoogleOAuthPage()) {
-    console.log('Google OAuth page detected, skipping content script injection.');
-    return; // Exit early to avoid running the content script on OAuth pages
-  }
+function initializeContentScript() {
+  document.addEventListener('click', detectFormClick);  // Listen for clicks on forms/fields
+}
 
-  console.log('Page loaded, setting up field listeners...');
-  setupFieldListeners();
-});
-
-// Detect sign-up page and prompt to save credentials
-document.addEventListener('submit', (event) => {
-  const fields = detectLoginFields();
-  
-  if (fields.username && fields.password) {
-    const username = fields.username.value;
-    const password = fields.password.value;
-    
-    if (username && password) {
-      console.log('Submitting credentials for saving:', username);
-      
-      // Send credentials to background script to save
-      chrome.runtime.sendMessage({ action: 'saveCredentials', username, password });
-    } else {
-      console.warn('Username or password is empty, not saving credentials.');
+// Handle incoming messages for autofill
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.action === 'autoFill' && message.credentials) {
+    console.log('Autofill message received. Populating fields...');
+    const fields = detectLoginFields();
+    if (fields.username && message.credentials.username) {
+      fields.username.value = message.credentials.username;
     }
-  } else {
-    console.warn('Username or password field not detected, skipping save credentials.');
+    if (fields.password && message.credentials.password) {
+      fields.password.value = message.credentials.password;
+    }
   }
 });
