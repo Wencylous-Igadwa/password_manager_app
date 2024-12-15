@@ -33,6 +33,17 @@ const getCsrfToken = async () => {
   }
 };
 
+// Decode JWT (id_token) and extract the payload
+function parseJwt(token) {
+  const base64Url = token.split('.')[1]; // Get the payload part of the JWT
+  const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/'); // URL-safe base64 decoding
+  const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+  }).join(''));
+
+  return JSON.parse(jsonPayload);
+}
+
 // Initialize the Google authentication flow using the Chrome Identity API
 async function initializeGoogleAuth() {
   try {
@@ -85,7 +96,7 @@ async function initializeGoogleAuth() {
       function(redirectUrl) {
         console.log('Redirect URL:', redirectUrl); // Log the returned redirect URL
 
-        // Ensure the redirect URL has the fragment part containing the id_token and nonce
+        // Ensure the redirect URL has the fragment part containing the id_token
         const urlHash = new URL(redirectUrl).hash; // URL fragment
         if (!urlHash) {
           console.error('No URL hash found in the redirect URL');
@@ -94,17 +105,19 @@ async function initializeGoogleAuth() {
 
         const urlParams = new URLSearchParams(urlHash.substring(1)); // Remove the '#' from the hash
         const idToken = urlParams.get('id_token');  // Get the id_token
-        const returnedNonce = urlParams.get('nonce');  // Get the nonce from the response
+        if (idToken) {
+          // Decode the JWT to extract the nonce
+          const decodedToken = parseJwt(idToken);
+          const returnedNonce = decodedToken.nonce;  // Extract the nonce from the decoded JWT
+          const storedNonce = sessionStorage.getItem('nonce');
+          console.log("Returned nonce:", returnedNonce, "Stored nonce:", storedNonce);
 
-        // Log the returned nonce and the stored nonce
-        const storedNonce = sessionStorage.getItem('nonce');
-        console.log("Returned nonce:", returnedNonce, "Stored nonce:", storedNonce);
-
-        // Validate the nonce
-        if (returnedNonce !== storedNonce) {
-          console.error('Nonce mismatch: potential replay attack');
-        } else if (idToken) {
-          onGoogleSignInWithIdToken(idToken);  // Handle login with id_token
+          // Validate the nonce
+          if (returnedNonce !== storedNonce) {
+            console.error('Nonce mismatch: potential replay attack');
+          } else {
+            onGoogleSignInWithIdToken(idToken);  // Handle login with id_token
+          }
         } else {
           console.error('Google OAuth failed: No id_token received');
         }
