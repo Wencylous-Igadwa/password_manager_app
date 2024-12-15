@@ -29,6 +29,32 @@ const PasswordStrengthTable: React.FC<PasswordStrengthTableProps> = ({ password 
         }
     };
 
+    const generateComments = (score: number): string[] => {
+        switch (score) {
+            case 2:
+                return [
+                    "Password is weak. Consider adding a mix of uppercase and lowercase letters.",
+                    "Include numbers and special characters to increase strength.",
+                ];
+            case 3:
+                return [
+                    "Password is moderate. Adding more special characters can improve security.",
+                    "Consider making the password longer for better protection.",
+                ];
+            case 4:
+                return [
+                    "Password is strong, but try adding a symbol for enhanced security.",
+                    "Consider using a longer passphrase for increased security.",
+                ];
+            case 5:
+                return [
+                    "Very strong password! Excellent work.",
+                ];
+            default:
+                return [];
+        }
+    };
+
     // Sort passwords by score in ascending order (weakest first)
     const sortedPasswords = [...password].sort((a, b) => a.score - b.score);
 
@@ -111,32 +137,37 @@ const PasswordStrengthTable: React.FC<PasswordStrengthTableProps> = ({ password 
                     </tr>
                 </thead>
                 <tbody>
-                    {sortedPasswords.map((entry) => (
-                        <tr key={entry.url}>
-                            <td>{entry.url}</td>
-                            <td>{'•'.repeat(entry.password.length)}</td>
-                            <td>
-                                <div className="strength-bar">
-                                    <div
-                                        className={`strength-level ${getStrengthClass(entry.score)}`}
-                                        style={{ width: `${(entry.score / 5) * 100}%` }}
-                                    ></div>
-                                </div>
-                                <p>{entry.strengthText}</p>
-                            </td>
-                            <td>
-                                {entry.suggestions.length > 0 ? (
-                                    <ul>
-                                        {entry.suggestions.map((tip) => (
-                                            <li key={tip}>{tip}</li>
-                                        ))}
-                                    </ul>
-                                ) : (
-                                    'Strong password!'
-                                )}
-                            </td>
-                        </tr>
-                    ))}
+                    {sortedPasswords.map((entry) => {
+                        // Generate appropriate comments based on the password score
+                        const comments = generateComments(entry.score);
+
+                        return (
+                            <tr key={entry.url}>
+                                <td>{entry.url}</td>
+                                <td>{'•'.repeat(entry.password.length)}</td>
+                                <td>
+                                    <div className="strength-bar">
+                                        <div
+                                            className={`strength-level ${getStrengthClass(entry.score)}`}
+                                            style={{ width: `${(entry.score / 5) * 100}%` }}
+                                        ></div>
+                                    </div>
+                                    <p>{entry.strengthText}</p>
+                                </td>
+                                <td>
+                                    {comments.length > 0 ? (
+                                        <ul>
+                                            {comments.map((tip, index) => (
+                                                <li key={index}>{tip}</li>
+                                            ))}
+                                        </ul>
+                                    ) : (
+                                        'Strong password!'
+                                    )}
+                                </td>
+                            </tr>
+                        );
+                    })}
                 </tbody>
             </table>
 

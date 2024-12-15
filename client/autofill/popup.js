@@ -23,6 +23,22 @@ function resetButton(button, text = 'Login with Google') {
 masterPasswordForm.addEventListener('submit', handleMasterPasswordLogin);
 googleLoginBtn.addEventListener('click', initializeGoogleAuth);
 
+const welcomeMessage = document.getElementById('welcome-message');
+// Display the username on initialization
+async function displayWelcomeMessage() {
+  try {
+    const userEmail = await getValidUserEmail();
+    if (userEmail) {
+      welcomeMessage.textContent = `Welcome, ${userEmail}`;
+    } else {
+      welcomeMessage.textContent = 'Welcome! Please log in.';
+    }
+  } catch (error) {
+    console.error('Error displaying welcome message:', error);
+    welcomeMessage.textContent = 'Welcome! Please log in.';
+  }
+}
+
 // Optimized CSRF token caching mechanism (expires after 5 minutes)
 let csrfTokenCache = null;
 let csrfTokenTimestamp = 0;
@@ -124,7 +140,6 @@ async function initializeGoogleAuth() {
   }
 }
 
-// Handle Google Sign-In success
 async function onGoogleSignInWithIdToken(idToken) {
   try {
     const csrfToken = await getCsrfToken();
@@ -143,19 +158,38 @@ async function onGoogleSignInWithIdToken(idToken) {
       document.cookie = `token=${data.token}; path=/; max-age=3600`;
       document.cookie = `refreshToken=${data.refreshToken}; path=/; max-age=604800`;
 
+      // Store the userEmail in chrome.storage.local
+      chrome.storage.local.set({ userEmail: data.email }, () => {
+        console.log("User email saved.");
+        displayWelcomeMessage(); // Update the welcome message
+      });
+
       statusText.textContent = "Google login successful. Redirecting...";
-      setTimeout(() => {
-        chrome.storage.local.set({ userEmail: data.email }, initializeAutoFill);
-      }, 2000);
     } else {
       statusText.textContent = data.message || "Google login failed. Please try again.";
     }
   } catch (error) {
     console.error("Google login failed:", error);
     statusText.textContent = "Google login failed. Please try again.";
+  } finally {
+    resetButton(googleLoginBtn);
   }
+}
 
-  resetButton(googleLoginBtn); // Reset button after completion
+async function getValidUserEmail() {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.get(['userEmail', 'emailExpiration'], (result) => {
+      const { userEmail, emailExpiration } = result;
+      if (userEmail && emailExpiration && Date.now() < emailExpiration) {
+        resolve(userEmail);
+      } else {
+        chrome.storage.local.remove(['userEmail', 'emailExpiration'], () => {
+          console.log("Stored email has expired or is invalid.");
+        });
+        resolve(null); // Return null if expired or missing
+      }
+    });
+  });
 }
 
 // Handle Master Password login
@@ -195,26 +229,36 @@ async function handleMasterPasswordLogin(event) {
 // Fetch credentials for the current site
 async function fetchCredentialsForSite() {
   try {
+    // Validate the stored userEmail and session
+    const userEmail = await getValidUserEmail();
+    if (!userEmail) {
+      statusText.textContent = "Session expired. Please log in again.";
+      return null;
+    }
+
+    // Get the active tab and its URL
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab || !tab.url) {
       throw new Error('No active tab or URL found.');
     }
 
-    const currentUrl = new URL(tab.url);
-    const domain = currentUrl.hostname;
+    const currentUrl = tab.url; // Full URL of the active tab
 
+    // Get CSRF token
     const csrfToken = await getCsrfToken();
     if (!csrfToken) throw new Error('CSRF token is not available.');
 
-    const response = await fetch(getFullUrl(`/account/get-credentials?domain=${domain}`), {
+    // Make the API request to fetch credentials
+    const response = await fetch(getFullUrl(`/account/get-credentials?site_url=${encodeURIComponent(currentUrl)}`), {
       method: 'GET',
       headers: { 'X-CSRF-Token': csrfToken },
       credentials: 'include',
     });
 
+    // Parse the response
     const data = await response.json();
-    if (response.ok && data.credentials) {
-      return data.credentials;
+    if (response.ok && Array.isArray(data)) {
+      return data; // Return the credentials array
     } else {
       statusText.textContent = 'No credentials found for this site.';
       return null;
@@ -251,3 +295,5 @@ async function initializeAutoFill() {
   }
 }
 
+// Initialize the popup page
+document.addEventListener('DOMContentLoaded', displayWelcomeMessage);

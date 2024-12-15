@@ -117,14 +117,31 @@ function initializeContentScript() {
 
 // Handle incoming messages for autofill
 chrome.runtime.onMessage.addListener((message) => {
-  if (message.action === 'autoFill' && message.credentials) {
-    console.log('Autofill message received. Populating fields...');
+  if (message.action === 'autoFill' && Array.isArray(message.credentials)) {
+    console.log('Autofill message received. Processing credentials...');
+
     const fields = detectLoginFields();
-    if (fields.username && message.credentials.username) {
-      fields.username.value = message.credentials.username;
+    if (!fields.username || !fields.password) {
+      console.error('Unable to detect login fields on the page.');
+      return;
     }
-    if (fields.password && message.credentials.password) {
-      fields.password.value = message.credentials.password;
+
+    const credential = message.credentials[0];
+
+    if (!credential) {
+      console.error('No valid credentials found to autofill.');
+      return;
     }
+
+    if (credential.username) {
+      fields.username.value = credential.username;
+    }
+    if (credential.password) {
+      fields.password.value = credential.password;
+    }
+    console.log('Fields successfully populated with the credentials.');
+  } else {
+    console.error('Autofill message received, but no valid credentials provided.');
   }
 });
+
