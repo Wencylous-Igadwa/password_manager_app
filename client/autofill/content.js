@@ -36,24 +36,19 @@ function showAutoFillIcon(target) {
   // Function to update icon position based on target field
   function positionIcon() {
     const targetRect = target.getBoundingClientRect();
-    const targetLeft = targetRect.left + window.scrollX;
-    const targetTop = targetRect.top + window.scrollY;
-
-    // Adjust the icon's position to the right of the form field
     icon.style.position = 'absolute';
-    icon.style.top = `${targetTop + (targetRect.height / 2) - (icon.offsetHeight / 2)}px`; // Vertically center the icon
-    icon.style.left = `${targetLeft + targetRect.width + 10}px`; // Position the icon to the right of the field
-
-    // Ensure the icon stays on screen (adjust if necessary)
+    icon.style.top = `${window.scrollY + targetRect.top + targetRect.height / 2 - 24}px`; // Center vertically
+    icon.style.left = `${window.scrollX + targetRect.left + targetRect.width + 10}px`; // Position right
+  
+    // Ensure icon stays within viewport
     const iconRect = icon.getBoundingClientRect();
     if (iconRect.right > window.innerWidth) {
-      icon.style.left = `${window.innerWidth - iconRect.width - 10}px`; // Prevent overflow beyond viewport
+      icon.style.left = `${window.innerWidth - iconRect.width - 10}px`;
     }
-
     if (iconRect.bottom > window.innerHeight) {
-      icon.style.top = `${window.innerHeight - iconRect.height - 10}px`; // Prevent vertical overflow
+      icon.style.top = `${window.innerHeight - iconRect.height - 10}px`;
     }
-  }
+  }  
 
   positionIcon();
 
@@ -104,7 +99,6 @@ function detectFormClick(event) {
 function initializeContentScript() {
   document.addEventListener('focus', (event) => {
     const target = event.target;
-
     if (
       target.matches('input[type="email"], input[type="text"][name*="user"], input[type="text"][name*="email"]') ||
       target.matches('input[type="password"]')
@@ -118,6 +112,7 @@ function initializeContentScript() {
 chrome.runtime.onMessage.addListener((message) => {
   if (message.action === 'autoFill' && Array.isArray(message.credentials)) {
     console.log('Autofill message received. Processing credentials...');
+    console.log('Received credentials:', message.credentials);
 
     const fields = detectLoginFields();
     if (!fields.username || !fields.password) {

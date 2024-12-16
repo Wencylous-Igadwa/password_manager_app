@@ -27,10 +27,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-// Send a message to the popup to request the CSRF token
+// Get CSRF token from popup
 async function getCsrfTokenFromPopup() {
   return new Promise((resolve, reject) => {
     chrome.runtime.sendMessage({ action: 'getCsrfToken' }, (response) => {
+      if (chrome.runtime.lastError) {
+        reject(chrome.runtime.lastError.message);
+        return;
+      }
       if (response && response.csrfToken) {
         resolve(response.csrfToken);
       } else {
@@ -43,36 +47,49 @@ async function getCsrfTokenFromPopup() {
 // Refresh token on startup
 async function refreshTokenOnStartup() {
   try {
-    // Get the refreshToken and deviceId from local storage
     const { refreshToken, deviceId } = await chrome.storage.local.get(['refreshToken', 'deviceId']);
-    if (refreshToken && deviceId) {
-      const csrfToken = await getCsrfTokenFromPopup();
-      
-      // Proceed with token refresh if csrfToken is available
-      const response = await fetch(`${backendUrl}/auth/refresh-token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
-        body: JSON.stringify({ refreshToken }),
-      });
+    if (!refreshToken || !deviceId) {
+      console.warn('No refresh token or device ID found in local storage');
+      return;
+    }
 
-      if (!response.ok) {
-        console.error('Token refresh failed:', response.status);
-        return;
-      }
+    const csrfToken = await getCsrfTokenFromPopup().catch((error) => {
+      console.warn('CSRF token retrieval failed:', error);
+      return null;
+    });
 
-      const data = await response.json();
-      if (data.token) {
-        chrome.storage.local.set({ accessToken: data.token });
-      } else {
-        console.error('No new token returned during refresh.');
-      }
+    const headers = { 'Content-Type': 'application/json' };
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
+
+    const response = await fetch(`${backendUrl}/auth/refresh-token`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ refreshToken, deviceId }),
+    });
+
+    if (!response.ok) {
+      const errorDetails = await response.json().catch(() => null);
+      console.error('Token refresh failed:', response.status, errorDetails);
+      return;
+    }
+
+    const data = await response.json();
+    if (data.token) {
+      await chrome.storage.local.set({ accessToken: data.token });
+      console.log('Access token refreshed successfully');
+    } else {
+      console.error('No new token returned during refresh.');
     }
   } catch (error) {
     console.error('Error during token refresh:', error);
   }
 }
 
-// Ensure token refresh occurs on startup
-chrome.runtime.onStartup.addListener(() => {
-  refreshTokenOnStartup();
+// Ensure token refresh occurs on startup and installation
+chrome.runtime.onStartup.addListener(refreshTokenOnStartup);
+chrome.runtime.onInstalled.addListener((details) => {
+  if (details.reason === 'install' || details.reason === 'update') {
+    refreshTokenOnStartup();
+  }
 });
+

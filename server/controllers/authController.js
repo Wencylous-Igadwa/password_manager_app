@@ -218,7 +218,7 @@ exports.loginWithGoogle = async (req, res) => {
     // Set tokens using plain email for user context
     const { token, refreshToken, deviceId } = setTokens(res, user.id, googleEmail, user.device_id);
 
-    return res.status(200).json({ message: 'Google login successful', token, refreshToken, deviceId });
+    return res.status(200).json({ message: 'Google login successful', token, refreshToken, deviceId, email: googleEmail });
   } catch (err) {
     console.error('Google Login Error:', err);
     return res.status(500).json({ error: 'Internal server error', details: err.message });
