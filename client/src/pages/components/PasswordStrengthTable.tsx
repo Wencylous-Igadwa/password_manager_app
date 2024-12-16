@@ -28,7 +28,6 @@ const PasswordStrengthTable: React.FC<PasswordStrengthTableProps> = ({ password 
                 return '';
         }
     };
-
     const generateComments = (score: number): string[] => {
         switch (score) {
             case 2:
@@ -61,58 +60,68 @@ const PasswordStrengthTable: React.FC<PasswordStrengthTableProps> = ({ password 
     // Function to generate and download the PDF report
     const generatePDF = () => {
         const doc = new jsPDF('l', 'mm', 'a4'); // Landscape format (l) for A4 paper
-
-        // Title for the report
+    
+        // Title for the report - Centered
         doc.setFontSize(18);
-        doc.text('Password Strength Report', 14, 20);
-
+        const title = 'Password Strength Report';
+        const titleWidth = doc.getTextWidth(title); // Correct method to get text width
+        const xPosition = (297 - titleWidth) / 2;  // Calculate the X position to center the title
+        doc.text(title, xPosition, 20);
+    
         // Define column widths for a balanced layout
         const colWidths = {
-            url: 70,         // URL column width
-            password: 50,    // Password column width
-            strength: 40,    // Strength column width
-            comments: 100,   // Comments column width
+            url: 100,         // URL column width (increased for better layout)
+            strength: 50,     // Strength column width
+            comments: 120,    // Comments column width (increased for better fit)
         };
-
+    
+        // Adjusted space between Site and Strength columns
+        const columnSpacing = 20; // Adjust this value to increase the gap between columns
+        const strengthToCommentsSpacing = 10; // Reduce the space between Strength and Comments columns
+    
         // Add table headers
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
         doc.text('Site', 14, 30);
-        doc.text('Password', 14 + colWidths.url, 30);
-        doc.text('Strength', 14 + colWidths.url + colWidths.password, 30);
-        doc.text('Comments', 14 + colWidths.url + colWidths.password + colWidths.strength, 30);
-
+        doc.text('Strength', 14 + colWidths.url + columnSpacing, 30); // Increased gap
+        doc.text('Comments', 14 + colWidths.url + colWidths.strength + columnSpacing - strengthToCommentsSpacing, 30); // Reduced gap
+    
+        // Draw a line after the header (extended to full page width)
+        doc.line(14, 32, 297, 32); // Draw a line across the page, just below the header
+    
         // Reset font to normal for the table content
         doc.setFont('helvetica', 'normal');
-
+    
         let yPosition = 40;
-        const lineHeight = 10; // Line height for each row
-
+        const lineHeight = 15; // Increased line height for padding between rows
+        const padding = 5; // Padding between rows for better spacing
+        const lineSpacing = 15; // Increased line spacing between rows
+    
         // Loop through the sorted passwords and add each row to the PDF
         sortedPasswords.forEach((entry) => {
-            // Masked password
-            const passwordMasked = '•'.repeat(entry.password.length);
-
+            // Generate the comments based on the score
+            const comments = generateComments(entry.score);
+    
             // Wrap URL text to fit in the page
             const wrappedUrl = doc.splitTextToSize(entry.url, colWidths.url);
-
+    
             // Site (wrapped)
             doc.text(wrappedUrl, 14, yPosition);
-
-            // Password (masked)
-            doc.text(passwordMasked, 14 + colWidths.url, yPosition);
-
+    
             // Strength
-            doc.text(entry.strengthText, 14 + colWidths.url + colWidths.password, yPosition);
-
+            doc.text(entry.strengthText, 14 + colWidths.url + columnSpacing, yPosition); // Adjusted position
+    
             // Comments with text wrapping
-            const suggestionsText = entry.suggestions.length > 0 ? entry.suggestions.join(', ') : 'Strong password!';
+            const suggestionsText = comments.length > 0 ? comments.join(', ') : 'Strong password!';
             const wrappedComments = doc.splitTextToSize(suggestionsText, colWidths.comments);
-            doc.text(wrappedComments, 14 + colWidths.url + colWidths.password + colWidths.strength, yPosition);
-
-            // Move down for the next row
-            yPosition += lineHeight;
-
+            doc.text(wrappedComments, 14 + colWidths.url + colWidths.strength + columnSpacing - strengthToCommentsSpacing, yPosition); // Adjusted position
+    
+            // Draw a horizontal line below each row (extended to full page width)
+            doc.line(14, yPosition + lineSpacing, 297, yPosition + lineSpacing); // Draw line from left to right edge
+    
+            // Move down for the next row with added padding
+            yPosition += lineHeight + padding + lineSpacing;
+    
             // Check if the current page has enough space, otherwise add a new page
             if (yPosition > 180) { // Adjusted for landscape layout
                 doc.addPage();
@@ -120,10 +129,10 @@ const PasswordStrengthTable: React.FC<PasswordStrengthTableProps> = ({ password 
                 doc.setFontSize(12); // Set font size for new page
             }
         });
-
+    
         // Save the document as a PDF
         doc.save('password-strength-report.pdf');
-    };
+    };             
 
     return (
         <div className="password-strength">

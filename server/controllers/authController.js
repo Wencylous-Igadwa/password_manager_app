@@ -11,6 +11,7 @@ const { sendRecoveryEmail } = require('../services/sendRecoveryEmail');
 const frontendUrl = process.env.FRONTEND_URL;
 const { encryptField, encryptEmail, encryptGoogleOauthId, decryptEmail } = require('../utils/encryption');
 const refreshTokens = [];
+const generateDeviceId = () => crypto.randomBytes(16).toString('hex');
 
 // Sign up endpoint
 exports.signup = async (req, res) => {
@@ -60,9 +61,10 @@ exports.signup = async (req, res) => {
                   google_oauth_id: encryptedGoogleOauthId,
                   google_oauth_id_iv: STATIC_GOOGLE_OAUTH_IV,
                   password_hash: passwordHash,
+                  device_id: generateDeviceId(),
               });
           }
-  
+
           // Set tokens using plain email for user context
           setTokens(res, user.id, googleEmail);
   
@@ -99,9 +101,8 @@ exports.signup = async (req, res) => {
                 username: encryptedUsername,
                 username_iv: usernameIv,
                 password_hash: hashedPassword,
+                device_id: generateDeviceId(),
             });
-
-            await user.save();
 
             setTokens(res, user.id, email);
             return res.status(201).json({ message: 'Signup successful' });
@@ -150,10 +151,10 @@ exports.loginWithEmailPassword = async (req, res) => {
     // Update the last login timestamp
     await user.update({ last_login: new Date() });
 
-    // Set tokens
-    setTokens(res, user.id, decryptedEmail);
+    // Set tokens and send response with token, refreshToken, and deviceId
+    const { token, refreshToken, deviceId } = setTokens(res, user.id, decryptedEmail, user.device_id);
 
-    return res.status(200).json({ message: 'Login successful', userId: user.id });
+    return res.status(200).json({ message: 'Login successful', token, refreshToken, deviceId });
   } catch (err) {
     console.error('Login Error:', err);
     res.status(500).json({ error: 'Internal server error', details: err.message });
@@ -210,20 +211,21 @@ exports.loginWithGoogle = async (req, res) => {
         google_oauth_id: encryptedGoogleOauthId,
         google_oauth_id_iv: STATIC_GOOGLE_OAUTH_IV,
         password_hash: passwordHash,
+        device_id: generateDeviceId(),
       });
     }
 
     // Set tokens using plain email for user context
-    setTokens(res, user.id, googleEmail);
+    const { token, refreshToken, deviceId } = setTokens(res, user.id, googleEmail, user.device_id);
 
-    return res.status(200).json({ message: 'Google login successful', userId: user.id });
+    return res.status(200).json({ message: 'Google login successful', token, refreshToken, deviceId });
   } catch (err) {
     console.error('Google Login Error:', err);
     return res.status(500).json({ error: 'Internal server error', details: err.message });
   }
 };
 
-function setTokens(res, userId, email) {
+function setTokens(res, userId, email, deviceId) {
   const token = jwt.sign({ userId, email }, process.env.JWT_SECRET, { expiresIn: '1h' });
   const refreshToken = jwt.sign({ userId, email }, process.env.REFRESH_TOKEN_SECRET, { expiresIn: '7d' });
   refreshTokens.push(refreshToken);
@@ -241,7 +243,7 @@ function setTokens(res, userId, email) {
       maxAge: 604800000,
   });
 
-  return { token, refreshToken };
+  return { token, refreshToken, deviceId };
 }
 
 // Refresh Token endpoint
@@ -273,6 +275,21 @@ exports.refreshToken = (req, res) => {
     console.error('Error verifying refresh token:', err);
     return res.status(403).json({ error: 'Invalid or expired refresh token' });
   }
+};
+
+exports.authenticateDevice = async (req, res, next) => {
+  const { deviceId } = req.headers;
+  const { userId } = req.user;
+
+  if (!deviceId) {
+      return res.status(401).json({ error: 'Device ID is required' });
+  }
+
+  const user = await User.findById(userId);
+  if (user.device_id !== deviceId) {
+      return res.status(403).json({ error: 'Device not authorized' });
+  }
+  next();
 };
 
 exports.checkAuth = (req, res) => {
@@ -401,6 +418,7 @@ function isTokenExpired(expirationDate) {
 
 // Logout endpoint
 exports.logout = (req, res) => {
+  user.device_id = null;
   res.clearCookie('token');
   res.clearCookie('refreshToken');
   return res.status(200).json({ message: 'Logged out successfully' });

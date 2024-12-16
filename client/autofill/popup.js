@@ -155,16 +155,22 @@ async function onGoogleSignInWithIdToken(idToken) {
 
     const data = await res.json();
     if (res.ok) {
-      document.cookie = `token=${data.token}; path=/; max-age=3600`;
-      document.cookie = `refreshToken=${data.refreshToken}; path=/; max-age=604800`;
+      // Store tokens and device ID in chrome.storage.local
+      chrome.storage.local.set({
+        accessToken: data.token,
+        refreshToken: data.refreshToken,
+        deviceId: data.deviceId,
+      }, () => {
+        console.log("Tokens and device ID saved.");
+      });
 
-      // Store the userEmail in chrome.storage.local
+      // Also store user email for displaying the welcome message
       chrome.storage.local.set({ userEmail: data.email }, () => {
         console.log("User email saved.");
         displayWelcomeMessage(); // Update the welcome message
       });
 
-      statusText.textContent = "Google login successful. Redirecting...";
+      statusText.textContent = "Google login successful. Autofill is ready !";
     } else {
       statusText.textContent = data.message || "Google login failed. Please try again.";
     }
@@ -178,15 +184,13 @@ async function onGoogleSignInWithIdToken(idToken) {
 
 async function getValidUserEmail() {
   return new Promise((resolve, reject) => {
-    chrome.storage.local.get(['userEmail', 'emailExpiration'], (result) => {
-      const { userEmail, emailExpiration } = result;
-      if (userEmail && emailExpiration && Date.now() < emailExpiration) {
+    chrome.storage.local.get(['userEmail'], (result) => {
+      const { userEmail } = result;
+
+      if (userEmail) {
         resolve(userEmail);
       } else {
-        chrome.storage.local.remove(['userEmail', 'emailExpiration'], () => {
-          console.log("Stored email has expired or is invalid.");
-        });
-        resolve(null); // Return null if expired or missing
+        resolve(null);
       }
     });
   });
@@ -297,3 +301,11 @@ async function initializeAutoFill() {
 
 // Initialize the popup page
 document.addEventListener('DOMContentLoaded', displayWelcomeMessage);
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === 'getCsrfToken') {
+    getCsrfToken().then((csrfToken) => {
+      sendResponse({ csrfToken });
+    });
+    return true;
+  }
+});

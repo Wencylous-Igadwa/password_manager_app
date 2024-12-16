@@ -66,6 +66,10 @@ const User = sequelize.define('User', {
     type: DataTypes.STRING,
     allowNull: true, 
   },
+  device_id: {
+    type: String,
+    unique: true,
+  },  
   resetTokenExpires: {
     type: DataTypes.DATE,
     allowNull: true,
