@@ -7,7 +7,7 @@ window.addEventListener('load', () => {
 // Detect login fields dynamically
 function detectLoginFields() {
   return {
-    username: document.querySelector('input[type="email"], input[type="text"]'),
+    username: document.querySelector('input[type="email"], input[type="text"][name*="user"], input[type="text"][name*="email"]'),
     password: document.querySelector('input[type="password"]'),
   };
 }
@@ -24,8 +24,14 @@ function showAutoFillIcon(target) {
   const icon = document.createElement('div');
   icon.id = 'autoFillIcon';
 
-  // Use the custom key emoji icon
-  icon.textContent = '🔑';
+  // Use a custom image for the autofill icon
+  const img = document.createElement('img');
+  img.src = 'https://lh3.googleusercontent.com/a/ACg8ocL_BptfodwWcfiplF1TsVi9kgWKN6taqaWpApw5VYPIeG4Earg=s288-c-no';
+  img.alt = 'icon';
+  img.style.width = '48px';
+  img.style.height = '48px';
+  img.style.pointerEvents = 'none';
+  icon.appendChild(img);
 
   // Function to update icon position based on target field
   function positionIcon() {
@@ -35,21 +41,20 @@ function showAutoFillIcon(target) {
 
     // Adjust the icon's position to the right of the form field
     icon.style.position = 'absolute';
-    icon.style.top = `${targetTop + (targetRect.height / 2) - (icon.offsetHeight / 2)}px`;  // Vertically center the icon relative to the field
-    icon.style.left = `${targetLeft + targetRect.width + 10}px`;  // Position the icon to the right of the field with a 10px margin
+    icon.style.top = `${targetTop + (targetRect.height / 2) - (icon.offsetHeight / 2)}px`; // Vertically center the icon
+    icon.style.left = `${targetLeft + targetRect.width + 10}px`; // Position the icon to the right of the field
 
     // Ensure the icon stays on screen (adjust if necessary)
     const iconRect = icon.getBoundingClientRect();
     if (iconRect.right > window.innerWidth) {
-      icon.style.left = `${window.innerWidth - iconRect.width - 10}px`; // Prevent overflow beyond the viewport
+      icon.style.left = `${window.innerWidth - iconRect.width - 10}px`; // Prevent overflow beyond viewport
     }
 
     if (iconRect.bottom > window.innerHeight) {
-      icon.style.top = `${window.innerHeight - iconRect.height - 10}px`; // Prevent overflow beyond the viewport vertically
+      icon.style.top = `${window.innerHeight - iconRect.height - 10}px`; // Prevent vertical overflow
     }
   }
 
-  // Initially position the icon
   positionIcon();
 
   // Update icon position on window resize or scroll
@@ -59,15 +64,11 @@ function showAutoFillIcon(target) {
   // Style the icon container with animations
   icon.style.cursor = 'pointer';
   icon.style.zIndex = '9999';
-  icon.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
-  icon.style.borderRadius = '50%';
-  icon.style.padding = '10px';
-  icon.style.transition = 'transform 0.3s ease-in-out, opacity 0.3s ease-in-out';  // Smooth transition effects
+  icon.style.transition = 'transform 0.3s ease-in-out, opacity 0.3s ease-in-out'; // Smooth transition effects
 
   // Append the icon to the body
   document.body.appendChild(icon);
 
-  // Optional: Add an event listener for the icon click to open the popup
   icon.addEventListener('click', () => {
     chrome.runtime.sendMessage({ action: 'openPopup' });
   });
@@ -75,44 +76,42 @@ function showAutoFillIcon(target) {
   // Remove the icon when the mouse leaves both the target field and the icon
   const removeIconOnHover = (event) => {
     if (!target.contains(event.target) && !icon.contains(event.target)) {
-      icon.remove();  // Remove the icon when user hovers away from the field or icon
-      target.removeEventListener('mouseleave', removeIconOnHover);  // Cleanup the hover listener
-      icon.removeEventListener('mouseleave', removeIconOnHover);  // Cleanup the hover listener for icon
+      icon.remove(); // Remove the icon when user hovers away
+      target.removeEventListener('mouseleave', removeIconOnHover); // Cleanup hover listener
+      icon.removeEventListener('mouseleave', removeIconOnHover); // Cleanup hover listener
     }
   };
 
   // Add hover event listeners to both the target and the icon
-  target.addEventListener('mouseenter', () => {
-    // Reposition the icon when hovering over the field
-    positionIcon();
-    icon.style.display = 'block';  // Show the icon
-  });
-
-  target.addEventListener('mouseleave', (event) => {
-    // Only trigger icon removal if mouse leaves both the field and the icon
-    removeIconOnHover(event);
-  });
-
-  icon.addEventListener('mouseenter', () => {
-    icon.style.display = 'block';  // Ensure the icon stays visible when hovering over it
-  });
-
-  icon.addEventListener('mouseleave', (event) => {
-    // Only trigger icon removal if mouse leaves both the field and the icon
-    removeIconOnHover(event);
-  });
+  target.addEventListener('mouseenter', positionIcon);
+  target.addEventListener('mouseleave', removeIconOnHover);
+  icon.addEventListener('mouseleave', removeIconOnHover);
 }
 
 // Detect clicks on forms or input fields
 function detectFormClick(event) {
-  const form = event.target.closest('form');
-  if (form) {
-    showAutoFillIcon(event.target);
+  const target = event.target;
+
+  // Check if the clicked target is a username/email or password field
+  if (
+    target.matches('input[type="email"], input[type="text"][name*="user"], input[type="text"][name*="email"]') ||
+    target.matches('input[type="password"]')
+  ) {
+    showAutoFillIcon(target);
   }
 }
 
 function initializeContentScript() {
-  document.addEventListener('click', detectFormClick);  // Listen for clicks on forms/fields
+  document.addEventListener('focus', (event) => {
+    const target = event.target;
+
+    if (
+      target.matches('input[type="email"], input[type="text"][name*="user"], input[type="text"][name*="email"]') ||
+      target.matches('input[type="password"]')
+    ) {
+      showAutoFillIcon(target);
+    }
+  }, true); // Use capture phase to catch focus events on child elements
 }
 
 // Handle incoming messages for autofill
@@ -144,4 +143,3 @@ chrome.runtime.onMessage.addListener((message) => {
     console.error('Autofill message received, but no valid credentials provided.');
   }
 });
-
