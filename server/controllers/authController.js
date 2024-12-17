@@ -11,7 +11,10 @@ const { sendRecoveryEmail } = require('../services/sendRecoveryEmail');
 const frontendUrl = process.env.FRONTEND_URL;
 const { encryptField, encryptEmail, encryptGoogleOauthId, decryptEmail } = require('../utils/encryption');
 const refreshTokens = [];
-const generateDeviceId = () => crypto.randomBytes(16).toString('hex');
+
+function generateDeviceId() {
+  return crypto.randomUUID(); // Generates a unique UUID
+}
 
 // Sign up endpoint
 exports.signup = async (req, res) => {
@@ -76,43 +79,46 @@ exports.signup = async (req, res) => {
     }
 
     if (email && password) {
-        try {
-            const encryptedEmail = encryptEmail(email);
-            const emailIv = process.env.STATIC_EMAIL_IV;
-
-            let user = await User.findOne({ where: { email: encryptedEmail, email_iv: emailIv } });
-
-            if (user) {
-                return res.status(400).json({ error: 'User already exists with this email' });
-            }
-
-            const hashedPassword = await argon2.hash(password, {
-                type: argon2.argon2id,
-                memoryCost: 2 ** 16,
-                timeCost: 3,
-                parallelism: 1,
-            });
-
-            const { encryptedField: encryptedUsername, iv: usernameIv } = encryptField(username);
-
-            user = new User({
-                email: encryptedEmail,
-                email_iv: emailIv,
-                username: encryptedUsername,
-                username_iv: usernameIv,
-                password_hash: hashedPassword,
-                device_id: generateDeviceId(),
-            });
-
-            setTokens(res, user.id, email);
-            return res.status(201).json({ message: 'Signup successful' });
-
-        } catch (err) {
-            console.error("Signup Error:", err);
-            return res.status(500).json({ error: 'Something went wrong during signup' });
-        }
-    }
-
+      try {
+          const encryptedEmail = encryptEmail(email);
+          const emailIv = process.env.STATIC_EMAIL_IV;
+  
+          let user = await User.findOne({ where: { email: encryptedEmail, email_iv: emailIv } });
+  
+          if (user) {
+              return res.status(400).json({ error: 'User already exists with this email' });
+          }
+  
+          const hashedPassword = await argon2.hash(password, {
+              type: argon2.argon2id,
+              memoryCost: 2 ** 16,
+              timeCost: 3,
+              parallelism: 1,
+          });
+  
+          const { encryptedField: encryptedUsername, iv: usernameIv } = encryptField(username);
+  
+          user = new User({
+              email: encryptedEmail,
+              email_iv: emailIv,
+              username: encryptedUsername,
+              username_iv: usernameIv,
+              password_hash: hashedPassword,
+              device_id: generateDeviceId(),
+          });
+  
+          // Save the user to the database
+          await user.save();
+  
+          // Set tokens and respond
+          setTokens(res, user.id, email);
+          return res.status(201).json({ message: 'Signup successful' });
+  
+      } catch (err) {
+          console.error("Signup Error:", err);
+          return res.status(500).json({ error: 'Something went wrong during signup' });
+      }
+  }  
     return res.status(400).json({ error: 'Email, password, or Google token required' });
 };
 
@@ -152,9 +158,9 @@ exports.loginWithEmailPassword = async (req, res) => {
     await user.update({ last_login: new Date() });
 
     // Set tokens and send response with token, refreshToken, and deviceId
-    const { token, refreshToken, deviceId } = setTokens(res, user.id, decryptedEmail, user.device_id);
+    const { token, deviceId } = setTokens(res, user.id, decryptedEmail, user.device_id);
 
-    return res.status(200).json({ message: 'Login successful', token, refreshToken, deviceId });
+    return res.status(200).json({ message: 'Login successful', token, deviceId, email: decryptedEmail });
   } catch (err) {
     console.error('Login Error:', err);
     res.status(500).json({ error: 'Internal server error', details: err.message });
@@ -216,9 +222,9 @@ exports.loginWithGoogle = async (req, res) => {
     }
 
     // Set tokens using plain email for user context
-    const { token, refreshToken, deviceId } = setTokens(res, user.id, googleEmail, user.device_id);
+    const { token, deviceId } = setTokens(res, user.id, googleEmail, user.device_id);
 
-    return res.status(200).json({ message: 'Google login successful', token, refreshToken, deviceId, email: googleEmail });
+    return res.status(200).json({ message: 'Google login successful', token, deviceId, email: googleEmail });
   } catch (err) {
     console.error('Google Login Error:', err);
     return res.status(500).json({ error: 'Internal server error', details: err.message });
@@ -234,7 +240,7 @@ function setTokens(res, userId, email, deviceId) {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'Lax',
-      maxAge: 3600000,
+      maxAge: 3600,
   });
   res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
@@ -418,7 +424,7 @@ function isTokenExpired(expirationDate) {
 
 // Logout endpoint
 exports.logout = (req, res) => {
-  user.device_id = null;
+  // user.device_id = null;
   res.clearCookie('token');
   res.clearCookie('refreshToken');
   return res.status(200).json({ message: 'Logged out successfully' });

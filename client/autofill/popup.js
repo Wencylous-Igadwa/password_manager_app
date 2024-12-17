@@ -67,12 +67,12 @@ const getCsrfToken = async () => {
   }
 };
 
-const getAuthToken = () => {
+const getAccessToken = () => {
   return new Promise((resolve, reject) => {
     chrome.storage.local.get(['accessToken'], (result) => {
       const token = result.accessToken;
       if (!token) {
-        logInfo('Auth', 'No access token found in chrome.storage.local');
+        console.log('No access token found in chrome.storage.local');
         reject('No access token found');
       } else {
         resolve(token);
@@ -174,7 +174,6 @@ async function onGoogleSignInWithIdToken(idToken) {
     if (res.ok) {
       chrome.storage.local.set({
         accessToken: data.token,
-        refreshToken: data.refreshToken,
         deviceId: data.deviceId,
         userEmail: data.email,
       }, () => {
@@ -235,8 +234,28 @@ async function handleMasterPasswordLogin(event) {
   }
 }
 
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === 'sendSiteUrlToPopup') {
+    const siteUrl = message.siteUrl;
+    // Store the siteUrl in chrome.storage.local
+    chrome.storage.local.set({ siteUrl }, () => {
+      console.log('Site URL stored in local storage:', siteUrl);
+    });
+  }
+});
+
 async function fetchCredentialsForSite() {
   try {
+    // Retrieve the siteUrl from chrome.storage.local
+    const { siteUrl } = await new Promise((resolve) => {
+      chrome.storage.local.get(['siteUrl'], (result) => resolve(result));
+    });
+
+    if (!siteUrl) {
+      statusText.textContent = 'No site URL available.';
+      return null;
+    }
+
     const userEmail = await new Promise((resolve) => {
       chrome.storage.local.get(['userEmail'], ({ userEmail }) => resolve(userEmail));
     });
@@ -246,14 +265,11 @@ async function fetchCredentialsForSite() {
       return null;
     }
 
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab || !tab.url) throw new Error('No active tab or URL found.');
-
     const csrfToken = await getCsrfToken();
-    const accessToken = getAuthToken();
+    const accessToken = getAccessToken();
     if (!csrfToken || !accessToken) throw new Error('Authentication tokens are unavailable.');
 
-    const response = await fetch(getFullUrl(`/account/get-credentials?site_url=${encodeURIComponent(tab.url)}`), {
+    const response = await fetch(getFullUrl(`/account/get-credentials?site_url=${encodeURIComponent(siteUrl)}`), {
       method: 'GET',
       headers: {
         'X-CSRF-Token': csrfToken,
@@ -319,4 +335,5 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 });
+
 

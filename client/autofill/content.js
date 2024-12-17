@@ -65,8 +65,22 @@ function showAutoFillIcon(target) {
   document.body.appendChild(icon);
 
   icon.addEventListener('click', () => {
-    chrome.runtime.sendMessage({ action: 'openPopup' });
-  });
+    // First message to get the current tab's URL
+    chrome.runtime.sendMessage({ action: 'getCurrentTabUrl' }, (response) => {
+      if (response.siteUrl) {
+        const siteUrl = response.siteUrl;
+        chrome.runtime.sendMessage({
+          action: 'sendSiteUrlToPopup',
+          siteUrl: siteUrl,
+        });
+      } else {
+        console.error('Error:', response.error);
+      }
+  
+      // Second message to open the popup, sent after receiving the tab URL
+      chrome.runtime.sendMessage({ action: 'openPopup' });
+    });
+  });  
 
   // Remove the icon when the mouse leaves both the target field and the icon
   const removeIconOnHover = (event) => {
