@@ -16,44 +16,55 @@ exports.protectedRoute = async (req, res) => {
   res.json({ message: 'This is a protected route', user: req.user });
 };
 
+// Fetches credentials for a specific site 
 exports.getCredentials = async (req, res) => {
-  try {
-      const { site_url } = req.query;
+    try {
+        const { site_url } = req.query;
+  
+        // Fetch credentials for the logged-in user
+        const whereCondition = { user_id: req.user.userId };
+        const credentials = await Credential.findAll({
+            where: whereCondition,
+            attributes: [
+                'site_url',
+                'url_iv',
+                'username',
+                'username_iv',
+                'password',
+                'password_iv',
+            ],
+        });
 
-      // Fetch credentials for the logged-in user
-      const whereCondition = { user_id: req.user.userId };
-      if (site_url) whereCondition.site_url = site_url;
+        if (credentials.length === 0) {
+            return res.status(404).json({ message: 'No credentials found' });
+        }
 
-      const credentials = await Credential.findAll({
-          where: whereCondition,
-          attributes: [
-              'site_url',
-              'url_iv',
-              'username',
-              'username_iv',
-              'password',
-              'password_iv',
-          ],
-      });
+        // Decrypt each credential's site_url and compare
+        const decryptedCredentials = credentials.map((credential) => {
+            const decryptedSiteUrl = decryptField(credential.site_url, credential.url_iv);
 
-      if (credentials.length === 0) {
-          return res.status(404).json({ message: 'No credentials found' });
-      }
+            // Only keep the credentials that match the provided site_url
+            if (decryptedSiteUrl === site_url) {
+                return {
+                    site_url: decryptedSiteUrl,
+                    username: decryptField(credential.username, credential.username_iv),
+                    password: decryptField(credential.password, credential.password_iv),
+                };
+            }
+        }).filter(Boolean);  // Filter out any undefined entries (non-matching)
 
-      // Decrypt each field using its associated IV before sending the response
-      const response = credentials.map((credential) => ({
-          site_url: decryptField(credential.site_url, credential.url_iv),
-          username: decryptField(credential.username, credential.username_iv),
-          password: decryptField(credential.password, credential.password_iv),
-      }));
+        if (decryptedCredentials.length === 0) {
+            return res.status(404).json({ message: 'No matching credentials found' });
+        }
 
-      res.status(200).json(response);
-  } catch (error) {
-      console.error('Error fetching credentials:', error);
-      res.status(500).json({ message: 'Failed to fetch credentials' });
-  }
+        res.status(200).json(decryptedCredentials);
+    } catch (error) {
+        console.error('Error fetching credentials:', error);
+        res.status(500).json({ message: 'Failed to fetch credentials' });
+    }
 };
 
+// fetches all stored credentials for a specific user
 exports.fetchAllCreds = async (req, res) => {
     try {
         const whereCondition = { user_id: req.user.userId };
@@ -225,8 +236,12 @@ exports.savePassword = async (req, res) => {
         if (error) {
             return res.status(400).json({ message: error.details[0].message });
         }
+
+        // Normalize site_url: trim, convert to lowercase, and remove trailing slash
+        const normalizedSiteUrl = site_url.trim().toLowerCase().replace(/\/$/, '');
+
         // Encrypt the fields (site_url, username, password)
-        const { encryptedField: encryptedSiteUrl, iv: urlIv } = encryptField(site_url);
+        const { encryptedField: encryptedSiteUrl, iv: urlIv } = encryptField(normalizedSiteUrl);
         const { encryptedField: encryptedUsername, iv: usernameIv } = encryptField(username);
         const { encryptedField: encryptedPassword, iv: passwordIv } = encryptField(password);
 
@@ -298,91 +313,132 @@ exports.exportPasswords = async (req, res) => {
 // Configure multer for file upload
 const upload = multer({ dest: path.join(__dirname, '../uploads/') });
 
-// Route to import passwords from CSV (using multer for file upload)
 exports.importPasswords = async (req, res) => {
-  upload.single('csvFile')(req, res, async (err) => {
-      if (err) {
-          return res.status(400).json({ message: 'Error uploading file', details: err });
-      }
+    upload.single('csvFile')(req, res, async (err) => {
+        if (err) {
+            return res.status(400).json({ message: 'Error uploading file', details: err });
+        }
 
-      if (!req.file) {
-          return res.status(400).json({ message: 'CSV file is required' });
-      }
+        if (!req.file) {
+            return res.status(400).json({ message: 'CSV file is required' });
+        }
 
-      const filePath = path.join(__dirname, '../uploads/', req.file.filename);
+        // Validate that the file is a CSV file (based on MIME type or extension)
+        const fileExtension = path.extname(req.file.originalname).toLowerCase();
+        const fileMimeType = req.file.mimetype;
 
-      try {
-          const fileContent = fs.readFileSync(filePath, 'utf8');
+        if (fileExtension !== '.csv' || fileMimeType !== 'text/csv') {
+            return res.status(400).json({ message: 'Only CSV files are allowed' });
+        }
 
-          const { data, errors } = Papa.parse(fileContent, {
-              header: true,
-              skipEmptyLines: true,
-              dynamicTyping: true,
-              delimiter: ',',
-              quoteChar: '"',
-          });
+        const filePath = path.join(__dirname, '../uploads/', req.file.filename);
 
-          if (errors.length > 0) {
-              console.error('CSV Parsing Errors:', errors);
-              return res.status(400).json({ message: 'Error parsing CSV file', details: errors });
-          }
+        try {
+            const fileContent = fs.readFileSync(filePath, 'utf8');
 
-          const passwordSchema = Joi.object({
-              name: Joi.string().optional(),
-              url: Joi.string().uri().required(),
-              username: Joi.string().required(),
-              password: Joi.string().min(8).required(),
-              note: Joi.string().allow(null, '').optional(),
-          });
+            const { data, errors } = Papa.parse(fileContent, {
+                header: true,
+                skipEmptyLines: true,
+                dynamicTyping: true,
+                delimiter: ',',
+                quoteChar: '"',
+            });
 
-          const passwordEntries = [];
-          for (const entry of data) {
-              const { error, value } = passwordSchema.validate(entry);
-              if (error) {
-                  return res.status(400).json({
-                      message: `Validation error on entry: ${JSON.stringify(entry)}`,
-                      details: error.details,
-                  });
-              }
+            if (errors.length > 0) {
+                console.error('CSV Parsing Errors:', errors);
+                return res.status(400).json({ message: 'Error parsing CSV file', details: errors });
+            }
 
-              // Encrypt the fields
-              const { encryptedField: encryptedUrl, iv: urlIv } = encryptField(value.url);
-              const { encryptedField: encryptedUsername, iv: usernameIv } = encryptField(value.username);
-              const { encryptedField: encryptedPassword, iv: passwordIv } = encryptField(value.password);
-              const { encryptedField: encryptedName, iv: nameIv } = encryptField(value.name);
-              const { encryptedField: encryptedNote, iv: noteIv } = encryptField(value.note || '');
+            const passwordSchema = Joi.object({
+                name: Joi.string().optional(),
+                url: Joi.string().uri().required(),
+                username: Joi.string().required(),
+                password: Joi.string().min(8).required(),
+                note: Joi.string().allow(null, '').optional(),
+            });
 
-              passwordEntries.push({
-                  user_id: req.user.userId,
-                  site_url: encryptedUrl,
-                  url_iv: urlIv,
-                  username: encryptedUsername,
-                  username_iv: usernameIv,
-                  password: encryptedPassword,
-                  password_iv: passwordIv,
-                  name: encryptedName,
-                  name_iv: nameIv,
-                  note: encryptedNote,
-                  note_iv: noteIv, 
-              });
-          }
+            const passwordEntries = [];
+            for (const entry of data) {
+                const { error, value } = passwordSchema.validate(entry);
+                if (error) {
+                    return res.status(400).json({
+                        message: `Validation error on entry: ${JSON.stringify(entry)}`,
+                        details: error.details,
+                    });
+                }
 
-          await Credential.bulkCreate(passwordEntries);
+                // Normalize the site_url: trim, convert to lowercase, and remove trailing slash
+                const normalizedUrl = value.url.trim().toLowerCase().replace(/\/$/, '');
+                const normalizedUsername = value.username.trim();
 
-          res.status(200).json({ message: 'Passwords imported successfully' });
-      } catch (error) {
-          console.error('Error importing passwords:', error);
-          res.status(500).json({ message: 'Failed to import passwords' });
-      } finally {
-          try {
-              if (fs.existsSync(filePath)) {
-                  fs.unlinkSync(filePath);
-              }
-          } catch (cleanupError) {
-              console.error('Error cleaning up uploaded file:', cleanupError);
-          }
-      }
-  });
+                // Encrypt the normalized fields
+                const { encryptedField: encryptedUrl, iv: urlIv } = encryptField(normalizedUrl);
+                const { encryptedField: encryptedUsername, iv: usernameIv } = encryptField(normalizedUsername);
+                const { encryptedField: encryptedPassword, iv: passwordIv } = encryptField(value.password);
+                const { encryptedField: encryptedName, iv: nameIv } = encryptField(value.name);
+                const { encryptedField: encryptedNote, iv: noteIv } = encryptField(value.note || '');
+
+                // Fetch all credentials for the user
+                const credentials = await Credential.findAll({
+                    where: {
+                        user_id: req.user.userId,
+                    },
+                    attributes: ['id', 'username', 'site_url', 'username_iv', 'url_iv'],
+                });
+
+                let credentialExists = false;
+
+                // Decrypt each credential's username and site_url and compare
+                for (const credential of credentials) {
+                    const decryptedUsername = decryptField(credential.username, credential.username_iv);
+                    const decryptedSiteUrl = decryptField(credential.site_url, credential.url_iv);
+
+                    // If a matching credential is found, set flag to skip this entry
+                    if (decryptedUsername === normalizedUsername && decryptedSiteUrl === normalizedUrl) {
+                        credentialExists = true;
+                        break;
+                    }
+                }
+
+                if (credentialExists) {
+                    continue;  // Skip this entry if it already exists
+                }
+
+                // If not found, prepare the password entry for saving
+                passwordEntries.push({
+                    user_id: req.user.userId,
+                    site_url: encryptedUrl,
+                    url_iv: urlIv,
+                    username: encryptedUsername,
+                    username_iv: usernameIv,
+                    password: encryptedPassword,
+                    password_iv: passwordIv,
+                    name: encryptedName,
+                    name_iv: nameIv,
+                    note: encryptedNote,
+                    note_iv: noteIv, 
+                });
+            }
+
+            if (passwordEntries.length > 0) {
+                await Credential.bulkCreate(passwordEntries);
+                res.status(200).json({ message: 'Passwords imported successfully' });
+            } else {
+                res.status(201).json({ message: 'No new passwords were imported as they already exist' });
+            }
+        } catch (error) {
+            console.error('Error importing passwords:', error);
+            res.status(500).json({ message: 'Failed to import passwords' });
+        } finally {
+            try {
+                if (fs.existsSync(filePath)) {
+                    fs.unlinkSync(filePath);
+                }
+            } catch (cleanupError) {
+                console.error('Error cleaning up uploaded file:', cleanupError);
+            }
+        }
+    });
 };
 
 exports.getUsername = async (req, res) => {

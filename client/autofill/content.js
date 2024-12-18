@@ -65,20 +65,11 @@ function showAutoFillIcon(target) {
   document.body.appendChild(icon);
 
   icon.addEventListener('click', () => {
-    // First message to get the current tab's URL
-    chrome.runtime.sendMessage({ action: 'getCurrentTabUrl' }, (response) => {
-      if (response.siteUrl) {
-        const siteUrl = response.siteUrl;
-        chrome.runtime.sendMessage({
-          action: 'sendSiteUrlToPopup',
-          siteUrl: siteUrl,
-        });
-      } else {
+    // initiates the fetch and open popup action
+    chrome.runtime.sendMessage({ action: 'fetchAndOpenPopup' }, (response) => {
+      if (!response.success) {
         console.error('Error:', response.error);
       }
-  
-      // Second message to open the popup, sent after receiving the tab URL
-      chrome.runtime.sendMessage({ action: 'openPopup' });
     });
   });  
 
@@ -122,6 +113,26 @@ function initializeContentScript() {
   }, true); // Use capture phase to catch focus events on child elements
 }
 
+function showCredentialSelection(credentials, fields) {
+  const dropdown = document.createElement('select');
+  dropdown.id = 'credentialDropdown';
+
+  credentials.forEach((credential, index) => {
+    const option = document.createElement('option');
+    option.value = index;
+    option.textContent = `${credential.username} (${credential.siteName || 'No site name'})`;
+    dropdown.appendChild(option);
+  });
+
+  dropdown.addEventListener('change', () => {
+    const selectedCredential = credentials[dropdown.value];
+    fields.username.value = selectedCredential.username || '';
+    fields.password.value = selectedCredential.password || '';
+  });
+
+  document.body.appendChild(dropdown);
+}
+
 // Handle incoming messages for autofill
 chrome.runtime.onMessage.addListener((message) => {
   if (message.action === 'autoFill' && Array.isArray(message.credentials)) {
@@ -129,26 +140,27 @@ chrome.runtime.onMessage.addListener((message) => {
     console.log('Received credentials:', message.credentials);
 
     const fields = detectLoginFields();
-    if (!fields.username || !fields.password) {
+    
+    if (fields.username && fields.password) {
+      // If exactly one credential is found, autofill the fields
+      if (message.credentials.length === 1) {
+        const credential = message.credentials[0];
+        if (credential.username && credential.password) {
+          fields.username.value = credential.username;
+          fields.password.value = credential.password;
+          console.log('Credentials autofilled.');
+        } else {
+          console.error('Invalid credential data: username or password missing.');
+        }
+      } else {
+        // If multiple credentials are found, show a selection interface
+        showCredentialSelection(message.credentials, fields);
+      }
+    } else {
       console.error('Unable to detect login fields on the page.');
-      return;
     }
-
-    const credential = message.credentials[0];
-
-    if (!credential) {
-      console.error('No valid credentials found to autofill.');
-      return;
-    }
-
-    if (credential.username) {
-      fields.username.value = credential.username;
-    }
-    if (credential.password) {
-      fields.password.value = credential.password;
-    }
-    console.log('Fields successfully populated with the credentials.');
   } else {
-    console.error('Autofill message received, but no valid credentials provided.');
+    console.error('Autofill message received, but no valid credentials provided or message format is incorrect.');
   }
 });
+

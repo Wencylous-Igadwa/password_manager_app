@@ -5,21 +5,33 @@ const verifyToken = require('../middleware/authenticateToken');
 const { csrfProtection } = require('../middleware/csrfMiddleware');
 const { protectedRoute, getCredentials, fetchAllCreds, updatePassword, deletePassword, savePassword, exportPasswords, importPasswords, getUsername } = require('../controllers/userController');
 
-// Joi schema for validating the 'domain' parameter
-const domainValidationSchema = Joi.object({
-  domain: Joi.string().required().min(1).max(255).message('Domain is required and must be a valid string'),
-});
-
 // Protected route - Only accessible if logged in
 router.get('/dashboard', verifyToken, protectedRoute);
+
+// Define a schema to validate the site_url
+const siteUrlValidationSchema = Joi.object({
+  site_url: Joi.string().uri().required().messages({
+    'string.uri': 'Invalid site URL format.',
+    'any.required': 'Site URL is required.'
+  })
+});
 
 // Route to fetch credentials for a specific domain (protected by JWT)
 router.get('/get-credentials', verifyToken, csrfProtection, async (req, res, next) => {
   try {
-    const { error } = domainValidationSchema.validate(req.body);
+    // Decode the site_url query parameter
+    const { site_url } = req.query;
+    if (site_url) {
+      req.query.site_url = decodeURIComponent(site_url);
+    }
+
+    // Validate the decoded site_url
+    const { error } = siteUrlValidationSchema.validate(req.query);
     if (error) {
       return res.status(400).json({ error: error.details[0].message });
     }
+
+    // Proceed to fetch credentials
     await getCredentials(req, res, next);
   } catch (err) {
     next(err);

@@ -71,8 +71,9 @@ const getAccessToken = () => {
   return new Promise((resolve, reject) => {
     chrome.storage.local.get(['accessToken'], (result) => {
       const token = result.accessToken;
+
       if (!token) {
-        console.log('No access token found in chrome.storage.local');
+        console.error('No access token found in chrome.storage.local');
         reject('No access token found');
       } else {
         resolve(token);
@@ -172,7 +173,9 @@ async function onGoogleSignInWithIdToken(idToken) {
 
     const data = await res.json();
     if (res.ok) {
+      const loginTimestamp = Date.now();
       chrome.storage.local.set({
+        loginTimestamp:loginTimestamp,
         accessToken: data.token,
         deviceId: data.deviceId,
         userEmail: data.email,
@@ -234,16 +237,6 @@ async function handleMasterPasswordLogin(event) {
   }
 }
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === 'sendSiteUrlToPopup') {
-    const siteUrl = message.siteUrl;
-    // Store the siteUrl in chrome.storage.local
-    chrome.storage.local.set({ siteUrl }, () => {
-      console.log('Site URL stored in local storage:', siteUrl);
-    });
-  }
-});
-
 async function fetchCredentialsForSite() {
   try {
     // Retrieve the siteUrl from chrome.storage.local
@@ -256,6 +249,9 @@ async function fetchCredentialsForSite() {
       return null;
     }
 
+    // Normalize the siteUrl: trim, convert to lowercase, and remove trailing slash if any
+    const normalizedSiteUrl = siteUrl.trim().toLowerCase().replace(/\/$/, '');
+
     const userEmail = await new Promise((resolve) => {
       chrome.storage.local.get(['userEmail'], ({ userEmail }) => resolve(userEmail));
     });
@@ -266,10 +262,12 @@ async function fetchCredentialsForSite() {
     }
 
     const csrfToken = await getCsrfToken();
-    const accessToken = getAccessToken();
-    if (!csrfToken || !accessToken) throw new Error('Authentication tokens are unavailable.');
+    const accessToken = await getAccessToken();
 
-    const response = await fetch(getFullUrl(`/account/get-credentials?site_url=${encodeURIComponent(siteUrl)}`), {
+    if (!csrfToken || !accessToken) throw new Error('Authentication tokens are unavailable.');
+    
+    // Send the request with the normalized siteUrl
+    const response = await fetch(getFullUrl(`/account/get-credentials?site_url=${encodeURIComponent(normalizedSiteUrl)}`), {
       method: 'GET',
       headers: {
         'X-CSRF-Token': csrfToken,

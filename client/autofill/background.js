@@ -10,30 +10,31 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ success: true, message: 'Debugging complete.' });
       break;
 
-    case 'openPopup':
-      chrome.windows.create({
-        url: chrome.runtime.getURL('popup.html'),
-        type: 'popup',
-        width: 360,
-        height: 360,
-      });
-      sendResponse({ success: true, message: 'Popup opened successfully.' });
-      break;
-
-    case 'getCurrentTabUrl':
+    case 'fetchAndOpenPopup':
+      // Fetch the current tab's URL and open the popup
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (tabs[0]) {
           const siteUrl = tabs[0].url;
-          chrome.runtime.sendMessage({
-            action: 'sendSiteUrlToPopup',
-            siteUrl: siteUrl
+
+          // Store the siteUrl in chrome.storage.local
+          chrome.storage.local.set({ siteUrl }, () => {
+            console.log('Site URL stored in local storage:', siteUrl);
+
+            // Open the popup after storing the site URL
+            chrome.windows.create({
+              url: chrome.runtime.getURL('popup.html'),
+              type: 'popup',
+              width: 360,
+              height: 360,
+            });
+
+            sendResponse({ success: true, message: 'Popup opened with site URL stored.' });
           });
-          sendResponse({ siteUrl });
         } else {
-          sendResponse({ error: 'No active tab found' });
+          sendResponse({ success: false, error: 'No active tab found.' });
         }
       });
-      return true;  // Keep the message channel open for async response
+      return true; // Keep the channel open for async response
 
     default:
       console.warn('Unknown action:', message.action);

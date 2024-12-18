@@ -11,6 +11,7 @@ import AddPassword from './components/AddPassword';
 import RecentActivities from './components/RecentActivities';
 import AvailablePasswords from './components/AvailablePasswords';
 import PasswordStrengthTable from './components/PasswordStrengthTable';
+import axios from 'axios';
 
 // Define the props interface
 interface Props {
@@ -339,34 +340,58 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
         if (file) {
             const formData = new FormData();
             formData.append('csvFile', file);
-
+    
             setImporting(true);
             setError(null);
-
+    
             try {
-
                 const csrfToken = await getCsrfToken();
                 const authToken = getAuthToken();
-
+    
                 const response = await axiosInstance.post('/account/import-passwords', formData, {
                     headers: {
                         'Content-Type': 'multipart/form-data',
                         'X-CSRF-Token': csrfToken,
-                        'Authorization': `Bearer ${authToken}`
+                        'Authorization': `Bearer ${authToken}`,
                     },
                 });
-
+    
                 if (response.status === 200) {
                     alert('Passwords imported successfully!');
-                }
+                }else if (response.status === 201) {
+                    alert('Passwords imported successfully! but duplicate records have been skipped!');
+                } 
             } catch (err) {
                 console.error('Error importing passwords:', err);
-                setError('Failed to import passwords. Please check the file format.');
+    
+                // Handle Axios error
+                if (axios.isAxiosError(err)) {
+                    if (err.response) {
+                        // Server responded with a status other than 2xx
+                        const responseMessage = err.response.data.message || 'An error occurred while importing the passwords.';
+                        
+                        // Check if the error is related to file type
+                        if (responseMessage.includes('Only CSV files are allowed')) {
+                            alert('Please check the file type. Only CSV files are accepted.');
+                        } else {
+                            setError(responseMessage);
+                        }
+                    } else if (err.request) {
+                        // No response from the server
+                        setError('No response from the server. Please try again later.');
+                    } else {
+                        // Something else went wrong
+                        setError('An error occurred while processing the request.');
+                    }
+                } else {
+                    setError('An unexpected error occurred.');
+                }
             } finally {
                 setImporting(false);
             }
         }
     };
+
     const exportPasswordsToCSV = async () => {
         try {
             const response = await axiosInstance.get('/account/export-passwords');
