@@ -8,7 +8,7 @@
 SET statement_timeout = 0;
 SET lock_timeout = 0;
 SET idle_in_transaction_session_timeout = 0;
--- SET transaction_timeout = 0;
+SET transaction_timeout = 0;
 SET client_encoding = 'UTF8';
 SET standard_conforming_strings = on;
 SELECT pg_catalog.set_config('search_path', '', false);
@@ -18,16 +18,16 @@ SET client_min_messages = warning;
 SET row_security = off;
 
 --
--- Name: app_data; Type: SCHEMA; Schema: -; Owner: cipher
+-- Name: app_data; Type: SCHEMA; Schema: -; Owner: admin
 --
 
 CREATE SCHEMA app_data;
 
 
-ALTER SCHEMA app_data OWNER TO cipher;
+ALTER SCHEMA app_data OWNER TO admin;
 
 --
--- Name: update_timestamp(); Type: FUNCTION; Schema: app_data; Owner: cipher
+-- Name: update_timestamp(); Type: FUNCTION; Schema: app_data; Owner: admin
 --
 
 CREATE FUNCTION app_data.update_timestamp() RETURNS trigger
@@ -40,14 +40,14 @@ END;
 $$;
 
 
-ALTER FUNCTION app_data.update_timestamp() OWNER TO cipher;
+ALTER FUNCTION app_data.update_timestamp() OWNER TO admin;
 
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
 
 --
--- Name: audit_logs; Type: TABLE; Schema: app_data; Owner: cipher
+-- Name: audit_logs; Type: TABLE; Schema: app_data; Owner: admin
 --
 
 CREATE TABLE app_data.audit_logs (
@@ -59,10 +59,10 @@ CREATE TABLE app_data.audit_logs (
 );
 
 
-ALTER TABLE app_data.audit_logs OWNER TO cipher;
+ALTER TABLE app_data.audit_logs OWNER TO admin;
 
 --
--- Name: credentials; Type: TABLE; Schema: app_data; Owner: cipher
+-- Name: credentials; Type: TABLE; Schema: app_data; Owner: admin
 --
 
 CREATE TABLE app_data.credentials (
@@ -83,10 +83,10 @@ CREATE TABLE app_data.credentials (
 );
 
 
-ALTER TABLE app_data.credentials OWNER TO cipher;
+ALTER TABLE app_data.credentials OWNER TO admin;
 
 --
--- Name: password_breach; Type: TABLE; Schema: app_data; Owner: cipher
+-- Name: password_breach; Type: TABLE; Schema: app_data; Owner: admin
 --
 
 CREATE TABLE app_data.password_breach (
@@ -98,10 +98,10 @@ CREATE TABLE app_data.password_breach (
 );
 
 
-ALTER TABLE app_data.password_breach OWNER TO cipher;
+ALTER TABLE app_data.password_breach OWNER TO admin;
 
 --
--- Name: two_factor_auth; Type: TABLE; Schema: app_data; Owner: cipher
+-- Name: two_factor_auth; Type: TABLE; Schema: app_data; Owner: admin
 --
 
 CREATE TABLE app_data.two_factor_auth (
@@ -113,10 +113,10 @@ CREATE TABLE app_data.two_factor_auth (
 );
 
 
-ALTER TABLE app_data.two_factor_auth OWNER TO cipher;
+ALTER TABLE app_data.two_factor_auth OWNER TO admin;
 
 --
--- Name: users; Type: TABLE; Schema: app_data; Owner: cipher
+-- Name: users; Type: TABLE; Schema: app_data; Owner: admin
 --
 
 CREATE TABLE app_data.users (
@@ -135,14 +135,15 @@ CREATE TABLE app_data.users (
     username_iv character varying(32),
     google_oauth_id_iv character varying(32),
     reset_token_hash character varying(512),
-    reset_token_expires timestamp with time zone
+    reset_token_expires timestamp with time zone,
+    device_id character varying(100)
 );
 
 
-ALTER TABLE app_data.users OWNER TO cipher;
+ALTER TABLE app_data.users OWNER TO admin;
 
 --
--- Name: audit_logs audit_logs_pkey; Type: CONSTRAINT; Schema: app_data; Owner: cipher
+-- Name: audit_logs audit_logs_pkey; Type: CONSTRAINT; Schema: app_data; Owner: admin
 --
 
 ALTER TABLE ONLY app_data.audit_logs
@@ -150,7 +151,7 @@ ALTER TABLE ONLY app_data.audit_logs
 
 
 --
--- Name: password_breach password_breach_pkey; Type: CONSTRAINT; Schema: app_data; Owner: cipher
+-- Name: password_breach password_breach_pkey; Type: CONSTRAINT; Schema: app_data; Owner: admin
 --
 
 ALTER TABLE ONLY app_data.password_breach
@@ -158,7 +159,7 @@ ALTER TABLE ONLY app_data.password_breach
 
 
 --
--- Name: credentials passwords_pkey; Type: CONSTRAINT; Schema: app_data; Owner: cipher
+-- Name: credentials passwords_pkey; Type: CONSTRAINT; Schema: app_data; Owner: admin
 --
 
 ALTER TABLE ONLY app_data.credentials
@@ -166,7 +167,7 @@ ALTER TABLE ONLY app_data.credentials
 
 
 --
--- Name: two_factor_auth two_factor_auth_pkey; Type: CONSTRAINT; Schema: app_data; Owner: cipher
+-- Name: two_factor_auth two_factor_auth_pkey; Type: CONSTRAINT; Schema: app_data; Owner: admin
 --
 
 ALTER TABLE ONLY app_data.two_factor_auth
@@ -174,7 +175,7 @@ ALTER TABLE ONLY app_data.two_factor_auth
 
 
 --
--- Name: two_factor_auth two_factor_auth_user_id_key; Type: CONSTRAINT; Schema: app_data; Owner: cipher
+-- Name: two_factor_auth two_factor_auth_user_id_key; Type: CONSTRAINT; Schema: app_data; Owner: admin
 --
 
 ALTER TABLE ONLY app_data.two_factor_auth
@@ -182,7 +183,7 @@ ALTER TABLE ONLY app_data.two_factor_auth
 
 
 --
--- Name: users users_email_key; Type: CONSTRAINT; Schema: app_data; Owner: cipher
+-- Name: users users_email_key; Type: CONSTRAINT; Schema: app_data; Owner: admin
 --
 
 ALTER TABLE ONLY app_data.users
@@ -190,7 +191,7 @@ ALTER TABLE ONLY app_data.users
 
 
 --
--- Name: users users_pkey; Type: CONSTRAINT; Schema: app_data; Owner: cipher
+-- Name: users users_pkey; Type: CONSTRAINT; Schema: app_data; Owner: admin
 --
 
 ALTER TABLE ONLY app_data.users
@@ -198,49 +199,49 @@ ALTER TABLE ONLY app_data.users
 
 
 --
--- Name: idx_audit_user_id; Type: INDEX; Schema: app_data; Owner: cipher
+-- Name: idx_audit_user_id; Type: INDEX; Schema: app_data; Owner: admin
 --
 
 CREATE INDEX idx_audit_user_id ON app_data.audit_logs USING btree (user_id);
 
 
 --
--- Name: idx_breach_user_id; Type: INDEX; Schema: app_data; Owner: cipher
+-- Name: idx_breach_user_id; Type: INDEX; Schema: app_data; Owner: admin
 --
 
 CREATE INDEX idx_breach_user_id ON app_data.password_breach USING btree (user_id);
 
 
 --
--- Name: idx_password_user_id; Type: INDEX; Schema: app_data; Owner: cipher
+-- Name: idx_password_user_id; Type: INDEX; Schema: app_data; Owner: admin
 --
 
 CREATE INDEX idx_password_user_id ON app_data.credentials USING btree (user_id);
 
 
 --
--- Name: idx_user_email; Type: INDEX; Schema: app_data; Owner: cipher
+-- Name: idx_user_email; Type: INDEX; Schema: app_data; Owner: admin
 --
 
 CREATE INDEX idx_user_email ON app_data.users USING btree (email);
 
 
 --
--- Name: credentials update_passwords_modtime; Type: TRIGGER; Schema: app_data; Owner: cipher
+-- Name: credentials update_passwords_modtime; Type: TRIGGER; Schema: app_data; Owner: admin
 --
 
 CREATE TRIGGER update_passwords_modtime BEFORE UPDATE ON app_data.credentials FOR EACH ROW EXECUTE FUNCTION app_data.update_timestamp();
 
 
 --
--- Name: users update_users_modtime; Type: TRIGGER; Schema: app_data; Owner: cipher
+-- Name: users update_users_modtime; Type: TRIGGER; Schema: app_data; Owner: admin
 --
 
 CREATE TRIGGER update_users_modtime BEFORE UPDATE ON app_data.users FOR EACH ROW EXECUTE FUNCTION app_data.update_timestamp();
 
 
 --
--- Name: audit_logs audit_logs_user_id_fkey; Type: FK CONSTRAINT; Schema: app_data; Owner: cipher
+-- Name: audit_logs audit_logs_user_id_fkey; Type: FK CONSTRAINT; Schema: app_data; Owner: admin
 --
 
 ALTER TABLE ONLY app_data.audit_logs
@@ -248,7 +249,7 @@ ALTER TABLE ONLY app_data.audit_logs
 
 
 --
--- Name: credentials fk_user_id; Type: FK CONSTRAINT; Schema: app_data; Owner: cipher
+-- Name: credentials fk_user_id; Type: FK CONSTRAINT; Schema: app_data; Owner: admin
 --
 
 ALTER TABLE ONLY app_data.credentials
@@ -256,7 +257,7 @@ ALTER TABLE ONLY app_data.credentials
 
 
 --
--- Name: password_breach password_breach_password_id_fkey; Type: FK CONSTRAINT; Schema: app_data; Owner: cipher
+-- Name: password_breach password_breach_password_id_fkey; Type: FK CONSTRAINT; Schema: app_data; Owner: admin
 --
 
 ALTER TABLE ONLY app_data.password_breach
@@ -264,7 +265,7 @@ ALTER TABLE ONLY app_data.password_breach
 
 
 --
--- Name: password_breach password_breach_user_id_fkey; Type: FK CONSTRAINT; Schema: app_data; Owner: cipher
+-- Name: password_breach password_breach_user_id_fkey; Type: FK CONSTRAINT; Schema: app_data; Owner: admin
 --
 
 ALTER TABLE ONLY app_data.password_breach
@@ -272,7 +273,7 @@ ALTER TABLE ONLY app_data.password_breach
 
 
 --
--- Name: credentials passwords_user_id_fkey; Type: FK CONSTRAINT; Schema: app_data; Owner: cipher
+-- Name: credentials passwords_user_id_fkey; Type: FK CONSTRAINT; Schema: app_data; Owner: admin
 --
 
 ALTER TABLE ONLY app_data.credentials
@@ -280,7 +281,7 @@ ALTER TABLE ONLY app_data.credentials
 
 
 --
--- Name: two_factor_auth two_factor_auth_user_id_fkey; Type: FK CONSTRAINT; Schema: app_data; Owner: cipher
+-- Name: two_factor_auth two_factor_auth_user_id_fkey; Type: FK CONSTRAINT; Schema: app_data; Owner: admin
 --
 
 ALTER TABLE ONLY app_data.two_factor_auth
