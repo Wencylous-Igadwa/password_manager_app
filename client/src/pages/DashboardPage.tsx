@@ -424,12 +424,7 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
         navigator.clipboard.writeText(textToCopy)
             .then(() => alert("Username and Password copied to clipboard!"))
             .catch((err) => console.error("Failed to copy text: ", err));
-    };
-
-    const handlePasswordClick = (password: string) => {
-        analyzePasswordStrength(password); // This updates the passwordStrength state
-        setSelectedContent('availablePasswords'); // Ensure content is set to show passwords
-    };    
+    };  
 
     const togglePasswordVisibility = (index: number) => {
         setVisiblePasswords((prev) => ({
@@ -497,7 +492,6 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
                             importing={importing}
                             exportPasswordsToCSV={exportPasswordsToCSV}
                             handleFileUpload={handleFileUpload}
-                            onPasswordClick={handlePasswordClick}
                         />
                     )}
                     {selectedContent === 'addPassword' && (

@@ -1,21 +1,18 @@
 {
-  "manifest_version": 3,
+  "manifest_version": 2,
   "name": "Key Bag Password Manager",
   "version": "1.0.0",
   "permissions": [
     "storage",
-    "scripting",
     "activeTab",
     "tabs",
     "webNavigation",
-    "identity"
-  ],
-  "host_permissions": [
+    "identity",
     "<all_urls>"
   ],
   "background": {
-    "type": "module",
-    "service_worker": "background.js"
+    "scripts": ["background.js"],
+    "persistent": true
   },
   "content_scripts": [
     {
@@ -27,7 +24,7 @@
       "run_at": "document_end"
     }
   ],
-  "action": {
+  "browser_action": {
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
@@ -40,7 +37,5 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'"
-  }
+  "content_security_policy": "script-src 'self'; object-src 'self'"
 }

@@ -1,4 +1,5 @@
-import { jsPDF } from "jspdf";
+import { jsPDF } from 'jspdf';
+import React from 'react';
 
 type PasswordAnalyzeEntry = {
     url: string;
@@ -14,6 +15,9 @@ type PasswordStrengthTableProps = {
 };
 
 const PasswordStrengthTable: React.FC<PasswordStrengthTableProps> = ({ password }) => {
+    const [selectedStrength, setSelectedStrength] = React.useState<string>('all'); // State to hold the selected strength
+
+    // Get CSS class based on score
     const getStrengthClass = (score: number): string => {
         switch (score) {
             case 2:
@@ -28,6 +32,8 @@ const PasswordStrengthTable: React.FC<PasswordStrengthTableProps> = ({ password 
                 return '';
         }
     };
+
+    // Generate comments based on score
     const generateComments = (score: number): string[] => {
         switch (score) {
             case 2:
@@ -54,74 +60,92 @@ const PasswordStrengthTable: React.FC<PasswordStrengthTableProps> = ({ password 
         }
     };
 
-    // Sort passwords by score in ascending order (weakest first)
+    // Sort passwords by score (weakest first)
     const sortedPasswords = [...password].sort((a, b) => a.score - b.score);
+
+    // Filter passwords based on selected strength
+    const filterPasswordsByStrength = (strength: string) => {
+        if (strength === 'all') return sortedPasswords;
+        const strengthMap: { [key: string]: number[] } = {
+            weak: [2],
+            moderate: [3],
+            strong: [4],
+            veryStrong: [5],
+        };
+        return sortedPasswords.filter(entry => strengthMap[strength]?.includes(entry.score));
+    };
 
     // Function to generate and download the PDF report
     const generatePDF = () => {
         const doc = new jsPDF('l', 'mm', 'a4'); // Landscape format (l) for A4 paper
-    
+        const filteredPasswords = filterPasswordsByStrength(selectedStrength); // Get passwords based on selected strength
+
+        if (filteredPasswords.length === 0) {
+            alert('No passwords match the selected strength criteria.');
+            return;
+        }
+
         // Title for the report - Centered
         doc.setFontSize(18);
         const title = 'Password Strength Report';
         const titleWidth = doc.getTextWidth(title); // Correct method to get text width
         const xPosition = (297 - titleWidth) / 2;  // Calculate the X position to center the title
         doc.text(title, xPosition, 20);
-    
+
         // Define column widths for a balanced layout
         const colWidths = {
             url: 100,         // URL column width (increased for better layout)
             strength: 50,     // Strength column width
             comments: 120,    // Comments column width (increased for better fit)
         };
-    
+
         // Adjusted space between Site and Strength columns
         const columnSpacing = 20; // Adjust this value to increase the gap between columns
         const strengthToCommentsSpacing = 10; // Reduce the space between Strength and Comments columns
-    
+
         // Add table headers
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
         doc.text('Site', 14, 30);
         doc.text('Strength', 14 + colWidths.url + columnSpacing, 30); // Increased gap
         doc.text('Comments', 14 + colWidths.url + colWidths.strength + columnSpacing - strengthToCommentsSpacing, 30); // Reduced gap
-    
+
         // Draw a line after the header (extended to full page width)
         doc.line(14, 32, 297, 32); // Draw a line across the page, just below the header
-    
+
         // Reset font to normal for the table content
         doc.setFont('helvetica', 'normal');
-    
+
         let yPosition = 40;
         const lineHeight = 15; // Increased line height for padding between rows
         const padding = 5; // Padding between rows for better spacing
         const lineSpacing = 15; // Increased line spacing between rows
-    
-        // Loop through the sorted passwords and add each row to the PDF
-        sortedPasswords.forEach((entry) => {
+
+        // Loop through the filtered passwords and add each row to the PDF
+        filteredPasswords.forEach((entry) => {
             // Generate the comments based on the score
             const comments = generateComments(entry.score);
-    
+
             // Wrap URL text to fit in the page
             const wrappedUrl = doc.splitTextToSize(entry.url, colWidths.url);
-    
+
             // Site (wrapped)
             doc.text(wrappedUrl, 14, yPosition);
-    
+
             // Strength
             doc.text(entry.strengthText, 14 + colWidths.url + columnSpacing, yPosition); // Adjusted position
-    
+
             // Comments with text wrapping
             const suggestionsText = comments.length > 0 ? comments.join(', ') : 'Strong password!';
             const wrappedComments = doc.splitTextToSize(suggestionsText, colWidths.comments);
             doc.text(wrappedComments, 14 + colWidths.url + colWidths.strength + columnSpacing - strengthToCommentsSpacing, yPosition); // Adjusted position
-    
+
             // Draw a horizontal line below each row (extended to full page width)
             doc.line(14, yPosition + lineSpacing, 297, yPosition + lineSpacing); // Draw line from left to right edge
-    
+
             // Move down for the next row with added padding
             yPosition += lineHeight + padding + lineSpacing;
-    
+
             // Check if the current page has enough space, otherwise add a new page
             if (yPosition > 180) { // Adjusted for landscape layout
                 doc.addPage();
@@ -129,13 +153,30 @@ const PasswordStrengthTable: React.FC<PasswordStrengthTableProps> = ({ password 
                 doc.setFontSize(12); // Set font size for new page
             }
         });
-    
+
         // Save the document as a PDF
         doc.save('password-strength-report.pdf');
-    };             
+    };
 
     return (
         <div className="password-strength">
+            {/* Dropdown for selecting strength */}
+            <div>
+                <label htmlFor="strengthFilter">Filter by Strength: </label>
+                <select
+                    id="strengthFilter"
+                    value={selectedStrength}
+                    onChange={(e) => setSelectedStrength(e.target.value)}
+                >
+                    <option value="all">All</option>
+                    <option value="weak">Weak</option>
+                    <option value="moderate">Moderate</option>
+                    <option value="strong">Strong</option>
+                    <option value="veryStrong">Very Strong</option>
+                </select>
+            </div>
+
+            {/* Table displaying passwords */}
             <table>
                 <thead>
                     <tr>
