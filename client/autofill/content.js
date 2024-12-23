@@ -1,18 +1,9 @@
 // Initialize the content script when the page is loaded
 window.addEventListener('load', () => {
-  console.log('Page loaded, initializing content script...');
   initializeContentScript();
 });
 
-// Detect login fields dynamically
-function detectLoginFields() {
-  return {
-    username: document.querySelector('input[type="email"], input[type="text"][name*="user"], input[type="text"][name*="email"]'),
-    password: document.querySelector('input[type="password"]'),
-  };
-}
-
-// Show autofill icon when a form or input field is clicked
+// Show autofill icon when a form or input field is focused
 function showAutoFillIcon(target) {
   // Check if the icon already exists and remove it to prevent duplicates
   let existingIcon = document.getElementById('autoFillIcon');
@@ -88,79 +79,135 @@ function showAutoFillIcon(target) {
   icon.addEventListener('mouseleave', removeIconOnHover);
 }
 
-// Detect clicks on forms or input fields
-function detectFormClick(event) {
-  const target = event.target;
-
-  // Check if the clicked target is a username/email or password field
-  if (
-    target.matches('input[type="email"], input[type="text"][name*="user"], input[type="text"][name*="email"]') ||
-    target.matches('input[type="password"]')
-  ) {
-    showAutoFillIcon(target);
-  }
-}
-
+// Initialize content script
 function initializeContentScript() {
-  document.addEventListener('focus', (event) => {
-    const target = event.target;
-    if (
-      target.matches('input[type="email"], input[type="text"][name*="user"], input[type="text"][name*="email"]') ||
-      target.matches('input[type="password"]')
-    ) {
-      showAutoFillIcon(target);
-    }
-  }, true); // Use capture phase to catch focus events on child elements
+  document.addEventListener(
+    'focus',
+    (event) => {
+      const target = event.target;
+      if (
+        target.matches(
+          'input[type="email" i], input[type="text" i], input[name*="user" i], input[name*="email" i], input[type="password" i], input[placeholder*="user" i], input[placeholder*="email" i], input[placeholder*="password" i]'
+        )
+      ) {
+        showAutoFillIcon(target);
+      }
+    },
+    true
+  );
 }
 
+
+// Show credential selection dropdown
 function showCredentialSelection(credentials, fields) {
+  const existingDropdown = document.getElementById('credentialDropdown');
+  if (existingDropdown) {
+    existingDropdown.remove();
+  }
+
   const dropdown = document.createElement('select');
   dropdown.id = 'credentialDropdown';
+  dropdown.style.position = 'absolute';
+  dropdown.style.zIndex = '9999';
+
+  const rect = fields.username?.getBoundingClientRect() || fields.password?.getBoundingClientRect();
+  if (rect) {
+    dropdown.style.top = `${window.scrollY + rect.bottom + 5}px`;
+    dropdown.style.left = `${window.scrollX + rect.left}px`;
+  }
 
   credentials.forEach((credential, index) => {
     const option = document.createElement('option');
     option.value = index;
-    option.textContent = `${credential.username} (${credential.siteName || 'No site name'})`;
+    option.textContent = `${credential.username || 'Unknown User'} (${new URL(credential.site_url).hostname || 'No site name'})`;
     dropdown.appendChild(option);
   });
 
   dropdown.addEventListener('change', () => {
     const selectedCredential = credentials[dropdown.value];
-    fields.username.value = selectedCredential.username || '';
-    fields.password.value = selectedCredential.password || '';
+    if (selectedCredential) {
+      autofillCredentials(fields, selectedCredential);
+    }
+    dropdown.remove();
   });
 
   document.body.appendChild(dropdown);
+
+  dropdown.addEventListener('blur', () => dropdown.remove());
 }
 
-// Handle incoming messages for autofill
-chrome.runtime.onMessage.addListener((message) => {
-  if (message.action === 'autoFill' && Array.isArray(message.credentials)) {
-    console.log('Autofill message received. Processing credentials...');
-    console.log('Received credentials:', message.credentials);
+// Detect login fields dynamically
+function detectLoginFields() {
+  const usernameField = document.querySelector('input[type="email"], input[type="text"], input[name*="user"], input[name*="email"], input[placeholder*="user"], input[placeholder*="email"]');
+  const passwordField = document.querySelector('input[type="password"], input[placeholder*="password"]');
 
-    const fields = detectLoginFields();
-    
-    if (fields.username && fields.password) {
-      // If exactly one credential is found, autofill the fields
-      if (message.credentials.length === 1) {
-        const credential = message.credentials[0];
-        if (credential.username && credential.password) {
-          fields.username.value = credential.username;
-          fields.password.value = credential.password;
-          console.log('Credentials autofilled.');
-        } else {
-          console.error('Invalid credential data: username or password missing.');
-        }
-      } else {
-        // If multiple credentials are found, show a selection interface
-        showCredentialSelection(message.credentials, fields);
-      }
+  if (!usernameField || !passwordField) {
+    console.error('Failed to detect login fields');
+    return null;
+  }
+
+  return {
+    usernameSelector: getElementSelector(usernameField),
+    passwordSelector: getElementSelector(passwordField),
+  };
+}
+
+// Helper to get a unique selector for an element
+function getElementSelector(element) {
+  return element.id ? `#${element.id}` : element.name ? `[name="${element.name}"]` : element.tagName.toLowerCase();
+}
+
+// Autofill credentials into the detected fields
+function autofillCredentials({ username, password }) {
+  const fields = detectLoginFields();
+  console.log('Detected fields:', fields);
+
+  if (fields) {
+    const { usernameSelector, passwordSelector } = fields;
+
+    // Find the username and password input fields using the provided selectors
+    const usernameField = document.querySelector(usernameSelector);
+    const passwordField = document.querySelector(passwordSelector);
+
+    console.log('Username field:', usernameField);
+    console.log('Password field:', passwordField);
+
+    // Check if usernameField exists and autofill
+    if (usernameField) {
+      usernameField.value = username;
+      usernameField.dispatchEvent(new Event('input', { bubbles: true }));
     } else {
-      console.error('Unable to detect login fields on the page.');
+      console.error('Username field not found for autofill');
+    }
+
+    // Check if passwordField exists and autofill
+    if (passwordField) {
+      passwordField.value = password;
+      passwordField.dispatchEvent(new Event('input', { bubbles: true }));
+    } else {
+      console.error('Password field not found for autofill');
     }
   } else {
-    console.error('Autofill message received, but no valid credentials provided or message format is incorrect.');
+    console.error('Failed to autofill credentials: No login fields detected');
   }
-});
+}
 
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log('Content script received message:', message);
+
+  if (message.action === 'autofillCredentials') {
+    try {
+      console.log('Autofilling credentials:', message.credential);
+      autofillCredentials(message.credential);
+      sendResponse({ success: true });  // Send success response after autofill
+    } catch (error) {
+      console.error('Error autofilling credentials:', error);
+      sendResponse({ success: false, error: error.message || 'Failed to autofill credentials' });
+    }
+  } else {
+    console.log('Unknown action:', message.action);
+    sendResponse({ success: false, error: 'Unknown action' });
+  }
+
+  return true;  // Keep the message channel open for response
+});

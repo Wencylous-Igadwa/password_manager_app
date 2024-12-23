@@ -34,7 +34,7 @@ interface PasswordAnalyzeEntry {
     suggestions: string[];
 }
 
-type SelectedContent = 'addPassword' | 'recentActivities' | 'availablePasswords' | null;
+type SelectedContent = 'addPassword' | 'recentActivities' | 'availablePasswords' | 'passwordStrength'| null;
 
 
 interface VisiblePasswords {
@@ -60,6 +60,9 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
     const [fetchedUsername, setFetchedUsername] = useState<string>(username);
     const [openDialog, setOpenDialog] = useState(false);
     
+    
+    
+
     // Password strength analyzer function
     const analyzePasswordStrength = (password: string) => {
         let score = 0;
@@ -335,88 +338,139 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
         setNewPassword(password.join(''));
     };
 
+   
     const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
-        if (file) {
-            const formData = new FormData();
-            formData.append('csvFile', file);
+        if (!file) {
+            alert('Please select a file to import.');
+            return;
+        }
     
-            setImporting(true);
-            setError(null);
+        const formData = new FormData();
+        formData.append('csvFile', file);
+        console.log([...formData.entries()]);
+
+        for (const [key, value] of formData.entries()) {
+            console.log(`${key}:`, value);
+        }
+        
     
-            try {
-                const csrfToken = await getCsrfToken();
-                const authToken = getAuthToken();
+        setImporting(true);
+        setError(null);
     
-                const response = await axiosInstance.post('/account/import-passwords', formData, {
-                    headers: {
-                        'Content-Type': 'multipart/form-data',
-                        'X-CSRF-Token': csrfToken,
-                        'Authorization': `Bearer ${authToken}`,
-                    },
-                });
+        try {
+            const csrfToken = await getCsrfToken();
+            const authToken = getAuthToken();
     
-                if (response.status === 200) {
-                    alert('Passwords imported successfully!');
-                }else if (response.status === 201) {
-                    alert('Passwords imported successfully! but duplicate records have been skipped!');
-                } 
-            } catch (err) {
-                console.error('Error importing passwords:', err);
+            const response = await axiosInstance.post('/account/import-passwords', formData, {
+                headers: {
+                    'X-CSRF-Token': csrfToken,
+                    'Authorization': `Bearer ${authToken}`,
+                },
+            });
+            
     
-                // Handle Axios error
-                if (axios.isAxiosError(err)) {
-                    if (err.response) {
-                        // Server responded with a status other than 2xx
-                        const responseMessage = err.response.data.message || 'An error occurred while importing the passwords.';
-                        
-                        // Check if the error is related to file type
-                        if (responseMessage.includes('Only CSV files are allowed')) {
-                            alert('Please check the file type. Only CSV files are accepted.');
-                        } else {
-                            setError(responseMessage);
-                        }
-                    } else if (err.request) {
-                        // No response from the server
-                        setError('No response from the server. Please try again later.');
-                    } else {
-                        // Something else went wrong
-                        setError('An error occurred while processing the request.');
-                    }
-                } else {
-                    setError('An unexpected error occurred.');
-                }
-            } finally {
-                setImporting(false);
+            if (response.status === 200 || response.status === 201) {
+                const message = response.status === 200
+                    ? 'Passwords imported successfully!'
+                    : 'Passwords imported successfully, but duplicate records were skipped!';
+                alert(message);
+    
+                // Optionally refresh password list after import
+                const updatedPasswords = await axiosInstance.get('/account/fetch-allcreds');
+                setPasswords(updatedPasswords.data);
             }
+        } catch (err) {
+            console.error('Error importing passwords:', err);
+    
+            if (axios.isAxiosError(err)) {
+                const errorMessage = err.response?.data?.message || 'Failed to import passwords. Please try again.';
+                setError(errorMessage);
+                alert(errorMessage);
+            } else {
+                const errorMessage = 'An unexpected error occurred.';
+                setError(errorMessage);
+                alert(errorMessage);
+            }
+        } finally {
+            setImporting(false);
         }
     };
 
+    const [isExporting, setIsExporting] = useState(false);
+
     const exportPasswordsToCSV = async () => {
+        setIsExporting(true);
         try {
-            const response = await axiosInstance.get('/account/export-passwords');
-            if (response.status !== 200) {
-                console.error('Failed to fetch passwords for export');
-                return;
+            // Fetch passwords from the backend
+            const token = localStorage.getItem('authToken');  // or use your token storage method
+            const response = await axios.get('/account/export-passwords', {
+                headers: {
+                    'Authorization': `Bearer ${token}`,  // Add token to Authorization header
+                    'Content-Type': 'application/json',
+                },
+            });
+    
+            // Debugging: Log the response to verify its content
+            console.log('Backend response:', response);
+    
+            // Check if the response is successful and if the data is an array
+            if (response.status !== 200 || !Array.isArray(response.data)) {
+                console.error('Unexpected response data:', response.data);
+                throw new Error('Failed to fetch passwords for export. The response format is incorrect.');
             }
-
+    
+            // Prepare CSV data
             const passwordsToExport: PasswordEntry[] = response.data;
-            const csvData = Papa.unparse(passwordsToExport);
-            const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+            const csvHeaders = ['URL', 'Username', 'Password'];
+            const csvData = passwordsToExport.map((entry) => ({
+                URL: entry.url,
+                Username: entry.username,
+                Password: entry.password,
+            }));
+    
+            // Convert to CSV format
+            const csvContent = Papa.unparse({
+                fields: csvHeaders,
+                data: csvData,
+            });
+    
+            // Debugging: Log the generated CSV content
+            console.log('Generated CSV content:', csvContent);
+    
+            // Create a downloadable Blob
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
-
+    
+            // Create and trigger download link
             const link = document.createElement('a');
             link.href = url;
             link.download = 'passwords_export.csv';
+            document.body.appendChild(link);
             link.click();
-
+            document.body.removeChild(link);
+    
+            // Clean up the URL object
             URL.revokeObjectURL(url);
-            setRecentActivities([...recentActivities, { activity: 'Exported passwords to CSV', timestamp: new Date().toLocaleString() }]);
+    
+            // Log export activity
+            const timestamp = new Date().toLocaleString();
+            setRecentActivities([
+                ...recentActivities,
+                { activity: 'Exported passwords to CSV', timestamp },
+            ]);
+    
+            alert('Passwords exported successfully!');
         } catch (error) {
+            // Log the error to the console
             console.error('Error exporting passwords:', error);
+            // Display user-friendly error message
             setError('Failed to export passwords. Please try again.');
+        } finally {
+            setIsExporting(false);
         }
     };
+    
 
     const copyCredentialsToClipboard = (index: number) => {
         const password = passwords[index];
@@ -475,6 +529,13 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
                             <PasswordStrengthTable password={passwordStrength} />
                         </>
                     )}
+
+                        {selectedContent === 'passwordStrength' && (
+                                <>
+                                    <h2>Password Analysis Report</h2>
+                                    <PasswordStrengthTable password={passwordStrength} />
+                                </>
+                            )}
                     
                     {selectedContent === 'availablePasswords' && (
                         <AvailablePasswords
@@ -492,6 +553,7 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
                             importing={importing}
                             exportPasswordsToCSV={exportPasswordsToCSV}
                             handleFileUpload={handleFileUpload}
+                            isExporting={isExporting}
                         />
                     )}
                     {selectedContent === 'addPassword' && (

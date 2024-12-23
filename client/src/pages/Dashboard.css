@@ -321,29 +321,34 @@ th {
 .strength-bar {
     width: 100%;
     height: 10px;
-    background-color: #e0e0e0;
+    background-color: #e0e0e0; /* Light gray background */
     border-radius: 5px;
+    overflow: hidden;
+    margin-top: 10px;
 }
+
 
 .strength-level {
     height: 100%;
+    transition: width 0.3s ease-in-out;
     border-radius: 5px;
 }
 
+/* Colors based on strength levels */
 .strength-weak {
-    background-color: red;
+    background-color: red; /* Red for weak */
 }
 
 .strength-moderate {
-    background-color: orange;
+    background-color: #ffb74d; /* Orange for moderate */
 }
 
 .strength-strong {
-    background-color: yellowgreen;
+    background-color: #4db8ff; /* Light blue for strong */
 }
 
 .strength-very-strong {
-    background-color: green;
+    background-color: #4caf50; /* Green color */
 }
 
 /* Style suggestions */
@@ -383,6 +388,21 @@ body.light-mode {
     cursor: pointer;
     color: white;
 }
+
+.password-strength-button {
+    background-color: green;
+    color: white; 
+    border: none; 
+    padding: 10px 20px; 
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px; 
+}
+
+.password-strength-button:hover {
+    background-color: darkgreen; 
+}
+
 
 /* Dropdown menu styling */
 .dropdown-menu {

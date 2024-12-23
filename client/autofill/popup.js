@@ -10,6 +10,11 @@ const googleLoginBtn = document.getElementById('login-with-google-btn');
 const statusText = document.getElementById('status');
 const welcomeMessage = document.getElementById('welcome-message');
 
+// Initialize the popup
+masterPasswordForm.addEventListener('submit', handleMasterPasswordLogin);
+googleLoginBtn.addEventListener('click', initializeGoogleAuth);
+document.addEventListener('DOMContentLoaded', displayWelcomeMessage);
+
 // Loading state functions
 function showLoadingState(button) {
   button.disabled = true;
@@ -41,12 +46,10 @@ let csrfTokenTimestamp = 0;
 const getCsrfToken = async () => {
   const now = Date.now();
   if (csrfTokenCache && (now - csrfTokenTimestamp < 5 * 60 * 1000)) {
-    logInfo('CSRF', 'Using cached CSRF token');
     return csrfTokenCache;
   }
 
   try {
-    logInfo('CSRF', 'Fetching new CSRF token...');
     const csrfResponse = await fetch(getFullUrl('/csrf-token'), {
       method: 'GET',
       credentials: 'include',
@@ -59,13 +62,31 @@ const getCsrfToken = async () => {
     const { csrfToken } = await csrfResponse.json();
     csrfTokenCache = csrfToken;
     csrfTokenTimestamp = now;
-    logInfo('CSRF', 'CSRF token fetched successfully');
     return csrfTokenCache;
   } catch (error) {
     logError('CSRF', error);
     return null;
   }
 };
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === 'getCsrfToken') {
+    getCsrfToken()
+      .then((csrfToken) => {
+        if (csrfToken) {
+          sendResponse({ csrfToken });
+        } else {
+          console.warn('CSRF token retrieval failed or returned null');
+          sendResponse({ error: 'Failed to retrieve CSRF token' });
+        }
+      })
+      .catch((error) => {
+        console.error('Error fetching CSRF token:', error);
+        sendResponse({ error: 'Error fetching CSRF token' });
+      });
+    return true;
+  }
+});
 
 const getAccessToken = () => {
   return new Promise((resolve, reject) => {
@@ -178,7 +199,7 @@ async function onGoogleSignInWithIdToken(idToken) {
         loginTimestamp:loginTimestamp,
         accessToken: data.token,
         deviceId: data.deviceId,
-        userEmail: data.email,
+        googleEmail: data.email,
       }, () => {
         displayWelcomeMessage();
         statusText.textContent = "Google login successful. Autofill is ready!";
@@ -196,11 +217,17 @@ async function onGoogleSignInWithIdToken(idToken) {
 }
 
 async function displayWelcomeMessage() {
-  chrome.storage.local.get(['userEmail'], ({ userEmail }) => {
-    if (userEmail) {
-      welcomeMessage.textContent = `Welcome, ${userEmail}`;
+  chrome.storage.local.get(['googleEmail'], ({ googleEmail }) => {
+    if (googleEmail) {
+      welcomeMessage.textContent = `Welcome, ${googleEmail}`;
     } else {
-      welcomeMessage.textContent = 'Welcome! Please log in.';
+      chrome.storage.local.get(['userEmail'], ({ userEmail }) => {
+        if (userEmail) {
+          welcomeMessage.textContent = `Welcome, ${userEmail}`;
+        } else {
+          welcomeMessage.textContent = 'Welcome! Please log in.';
+        }
+      });
     }
   });
 }
@@ -212,22 +239,60 @@ async function handleMasterPasswordLogin(event) {
   showLoadingState(masterPasswordBtn);
 
   try {
-    const response = await fetch(getFullUrl('/verify-master-password'), {
+    const csrfToken = await getCsrfToken();
+
+    // Retrieve the userEmail from cookies
+    async function getUserEmailFromCookies(domain) {
+      return new Promise((resolve, reject) => {
+        chrome.cookies.get({ url: domain, name: 'userEmail' }, (cookie) => {
+          if (cookie) {
+            resolve(cookie.value);
+          } else {
+            reject('No email found in cookies');
+          }
+        });
+      });
+    }
+    const domain = 'http://localhost:5173/';
+    const storedEmail = await getUserEmailFromCookies(domain);
+    if (storedEmail) {
+      console.log('Email retrieved from cookie:', storedEmail);
+    } else {
+      console.log('No email found in cookies');
+    }
+
+    // Ensure that userEmail and masterPassword are sent in the correct format
+    const response = await fetch(getFullUrl('auth/login'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ masterPassword }),
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': csrfToken,
+      },
+      body: JSON.stringify({
+        email: storedEmail,
+        password: masterPassword,
+      }),
       credentials: 'include',
     });
 
     const data = await response.json();
-    if (data.success) {
-      chrome.storage.local.set({ userEmail: data.email }, () => {
-        statusText.textContent = 'Login successful. Ready for auto-fill.';
-      });
-
-      initializeAutoFill();
+    if (response.ok) {
+      const loginTimestamp = Date.now();
+      chrome.storage.local.set(
+        {
+          loginTimestamp,
+          accessToken: data.token,
+          deviceId: data.deviceId,
+          userEmail: data.email, // Store the decrypted email
+        },
+        () => {
+          displayWelcomeMessage();
+          statusText.textContent = 'Master password login successful. Autofill is ready!';
+          initializeAutoFill();
+        }
+      );
     } else {
-      statusText.textContent = 'Invalid master password.';
+      statusText.textContent = data.message || 'Invalid master password.';
     }
   } catch (error) {
     logError('MasterPasswordLogin', error);
@@ -278,7 +343,6 @@ async function fetchCredentialsForSite() {
 
     const data = await response.json();
     if (response.ok) {
-      logInfo('Credentials', 'Fetched credentials successfully', { data });
       return data;
     } else {
       logError('Credentials', `Failed to fetch credentials: ${data.message || 'Unknown error'}`);
@@ -292,46 +356,34 @@ async function fetchCredentialsForSite() {
   }
 }
 
+// Initializes the autofill process
 async function initializeAutoFill() {
   try {
     const credentials = await fetchCredentialsForSite();
-    if (credentials) {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (tab && tab.id) {
-        chrome.tabs.sendMessage(tab.id, { action: 'autoFill', credentials });
-        statusText.textContent = 'Credentials auto-filled.';
-      } else {
-        throw new Error('No active tab found for autofill.');
-      }
+
+    if (credentials && credentials.length > 0) {
+      // Extract the first matching credential from the fetched data
+      const { username, password } = credentials[0];
+
+      // Send the message to the background script to autofill the credentials
+      chrome.runtime.sendMessage(
+        {
+          action: 'autofillCredentials',  // Use a single action to handle autofill
+          credential: { username, password },
+        },
+        (response) => {
+          if (response && response.success) {
+            statusText.textContent = 'Credentials auto-filled successfully.';
+          } else {
+            statusText.textContent = `Auto-fill failed: ${response.error || 'Unknown error'}`;
+          }
+        }
+      );
+    } else {
+      statusText.textContent = 'No credentials found for this site. Please ensure you have saved credentials.';
     }
   } catch (error) {
     logError('AutoFill', error);
-    statusText.textContent = 'Error during auto-fill.';
+    statusText.textContent = `Error during auto-fill: ${error.message || 'Unexpected error occurred'}`;
   }
 }
-
-// Initialize the popup
-masterPasswordForm.addEventListener('submit', handleMasterPasswordLogin);
-googleLoginBtn.addEventListener('click', initializeGoogleAuth);
-document.addEventListener('DOMContentLoaded', displayWelcomeMessage);
-
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === 'getCsrfToken') {
-    getCsrfToken()
-      .then((csrfToken) => {
-        if (csrfToken) {
-          sendResponse({ csrfToken });
-        } else {
-          console.warn('CSRF token retrieval failed or returned null');
-          sendResponse({ error: 'Failed to retrieve CSRF token' });
-        }
-      })
-      .catch((error) => {
-        console.error('Error fetching CSRF token:', error);
-        sendResponse({ error: 'Error fetching CSRF token' });
-      });
-    return true;
-  }
-});
-
-

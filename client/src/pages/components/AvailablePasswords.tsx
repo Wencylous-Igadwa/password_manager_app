@@ -26,6 +26,7 @@ type AvailablePasswordsProps = {
     copyCredentialsToClipboard: (index: number) => void;
     importing: boolean;
     exportPasswordsToCSV: () => void;
+    isExporting: boolean;
     handleFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
 };
 
@@ -44,6 +45,7 @@ const AvailablePasswords: React.FC<AvailablePasswordsProps> = ({
     importing,
     exportPasswordsToCSV,
     handleFileUpload,
+    isExporting,
 }) => {
     const [passwordStrength, setPasswordStrength] = useState<PasswordStrength | null>(null);
 
@@ -90,23 +92,25 @@ const AvailablePasswords: React.FC<AvailablePasswordsProps> = ({
     return (
         <div>
             <h2>Available Passwords</h2>
-            {/* Export and Import Buttons */}
-            <div className="button-group">
-                <input
-                    type="file"
-                    accept=".csv"
-                    onChange={handleFileUpload}
-                    style={{ display: 'none' }}
-                    id="file-input"
-                    disabled={importing}
-                />
-                <label htmlFor="file-input" className="import-btn">
-                    Import Passwords
-                </label>
-                <button className="export-btn" onClick={exportPasswordsToCSV}>
-                    Export Passwords
-                </button>
-            </div>
+                {/* Export and Import Buttons */}
+                <div className="button-group">
+                    {/* Updated the input field to use name="csvFile" */}
+                    <input
+                        type="file"
+                        accept=".csv"
+                        onChange={handleFileUpload}
+                        style={{ display: 'none' }}
+                        id="file-input"
+                        name="csvFile" // This ensures the correct field name for file upload
+                        disabled={importing}
+                    />
+                    <label htmlFor="file-input" className="import-btn">
+                        Import Passwords
+                    </label>
+                    <button className="export-btn" onClick={exportPasswordsToCSV} disabled={isExporting}>
+                    {isExporting ? 'Exporting...' : 'Export Passwords'}
+                    </button>
+                </div>
 
             {/* Password Table */}
             <table>
@@ -217,8 +221,8 @@ const AvailablePasswords: React.FC<AvailablePasswordsProps> = ({
                     <p>Strength: {passwordStrength.text}</p>
                     <div className="strength-bar">
                         <div
-                            className={`strength-level strength-${passwordStrength.text.toLowerCase()}`}
-                            style={{ width: `${(passwordStrength.score / 5) * 100}%` }}
+                                        className={`strength-level ${passwordStrength.text === 'Very Strong' ? 'strength-very-strong' : `strength-${passwordStrength.text.toLowerCase()}`}`}
+                                        style={{ width: `${(passwordStrength.score / 5) * 100}%` }}
                         />
                     </div>
                 </div>

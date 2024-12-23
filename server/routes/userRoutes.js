@@ -2,6 +2,7 @@ const express = require('express');
 const Joi = require('joi');
 const router = express.Router();
 const verifyToken = require('../middleware/authenticateToken');
+const upload = require('../middleware/multer')
 const { csrfProtection } = require('../middleware/csrfMiddleware');
 const { protectedRoute, getCredentials, fetchAllCreds, updatePassword, deletePassword, savePassword, exportPasswords, importPasswords, getUsername } = require('../controllers/userController');
 
@@ -97,22 +98,45 @@ router.post('/save-password', verifyToken, csrfProtection, async (req, res, next
 });
 
 // Export passwords - Protected route
-router.get('/export-passwords', verifyToken, csrfProtection, async (req, res, next) => {
+router.get('/account/export-passwords', verifyToken, csrfProtection, async (req, res) => {
   try {
-    await exportPasswords(req, res, next);
-  } catch (err) {
-    next(err);
+      const passwords = await getPasswordsForExport(req.user);
+      if (!passwords) {
+          return res.status(404).json({ error: 'No passwords found.' });
+      }
+      res.status(200).json(passwords); // Ensure you're sending the correct data
+  } catch (error) {
+      console.error('Error exporting passwords:', error);
+      res.status(500).json({ error: 'Failed to export passwords.' });
   }
 });
 
 // Import passwords - Protected route
-router.post('/import-passwords', verifyToken, csrfProtection, async (req, res, next) => {
-  try {
-    await importPasswords(req, res, next);
-  } catch (err) {
-    next(err);
+router.post(
+  '/import-passwords',
+  verifyToken,
+  upload.single('csvFile'),
+  csrfProtection,
+  async (req, res, next) => {
+      if (!req.file) {
+          return res.status(400).json({ message: 'CSV file is required' });
+      }
+
+      try {
+          await importPasswords(req, res, next);
+      } catch (err) {
+          if (err instanceof multer.MulterError) {
+              return res.status(400).json({ message: err.message });
+          }
+          if (err.message === 'Only CSV files are allowed') {
+              return res.status(400).json({ message: err.message });
+          }
+          next(err); // Pass other errors to the global error handler
+      }
   }
-});
+);
+
+
 
 router.get('/get-username', verifyToken, csrfProtection, async (req, res, next) => {
   try {

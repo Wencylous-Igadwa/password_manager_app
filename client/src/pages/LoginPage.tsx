@@ -54,6 +54,7 @@ const Login = () => {
       const response = await axiosInstance.post("/auth/login", { email, password });
   
       if (response.status === 200) {
+        document.cookie = `userEmail=${email}; path=/; max-age=36000000;`;
         setSnackbarMessage("Login successful! Redirecting...");
         setOpenSnackbar(true);
         setTimeout(() => {

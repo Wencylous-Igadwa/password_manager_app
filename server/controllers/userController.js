@@ -7,6 +7,8 @@ const path = require('path');
 const multer = require('multer');
 const Joi = require('joi');
 
+
+
 // Protected Route for user (Example)
 exports.protectedRoute = async (req, res) => {
   if (!req.user) {
@@ -301,9 +303,10 @@ exports.exportPasswords = async (req, res) => {
       const csvData = Papa.unparse(decryptedEntries);
 
       // Send CSV file as response
-      res.setHeader('Content-Disposition', 'attachment; filename=passwords_export.csv');
       res.setHeader('Content-Type', 'text/csv');
-      res.status(200).send(csvData);
+        res.setHeader('Content-Disposition', 'attachment; filename="passwords.csv"');
+        res.status(200).send(csvData); // Ensure this is the CSV content
+
   } catch (error) {
       console.error('Error exporting passwords:', error);
       res.status(500).json({ message: 'Failed to export passwords' });
@@ -311,14 +314,34 @@ exports.exportPasswords = async (req, res) => {
 };
 
 // Configure multer for file upload
-const upload = multer({ dest: path.join(__dirname, '../uploads/') });
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, path.join(__dirname, '../uploads'));
+    },
+    filename: (req, file, cb) => {
+        cb(null, `${Date.now()}-${file.originalname}`);
+    },
+});
 
-exports.importPasswords = async (req, res) => {
+const upload = multer({
+    storage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // Limit: 5MB
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype === 'text/csv') {
+            cb(null, true);
+        } else {
+            cb(new Error('Only CSV files are allowed'), false);
+        }
+    },
+});
+
+exports.importPasswords = async (req, res, next) => {
     upload.single('csvFile')(req, res, async (err) => {
         if (err) {
             return res.status(400).json({ message: 'Error uploading file', details: err });
         }
 
+        // Check if file is uploaded
         if (!req.file) {
             return res.status(400).json({ message: 'CSV file is required' });
         }
@@ -432,7 +455,7 @@ exports.importPasswords = async (req, res) => {
         } finally {
             try {
                 if (fs.existsSync(filePath)) {
-                    fs.unlinkSync(filePath);
+                    fs.unlinkSync(filePath);  // Clean up uploaded file after processing
                 }
             } catch (cleanupError) {
                 console.error('Error cleaning up uploaded file:', cleanupError);
@@ -440,6 +463,7 @@ exports.importPasswords = async (req, res) => {
         }
     });
 };
+
 
 exports.getUsername = async (req, res) => {
     try {
