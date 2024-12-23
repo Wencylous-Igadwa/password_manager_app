@@ -356,24 +356,25 @@ async function fetchCredentialsForSite() {
   }
 }
 
-// Initializes the autofill process
 async function initializeAutoFill() {
   try {
     const credentials = await fetchCredentialsForSite();
 
     if (credentials && credentials.length > 0) {
-      // Extract the first matching credential from the fetched data
       const { username, password } = credentials[0];
 
-      // Send the message to the background script to autofill the credentials
       chrome.runtime.sendMessage(
         {
-          action: 'autofillCredentials',  // Use a single action to handle autofill
+          action: 'autofillCredentials', 
           credential: { username, password },
         },
         (response) => {
           if (response && response.success) {
-            statusText.textContent = 'Credentials auto-filled successfully.';
+            statusText.textContent = 'Credentials auto-filled successfully. Closing popup...';
+
+            setTimeout(() => {
+              window.close();
+            }, 1000); 
           } else {
             statusText.textContent = `Auto-fill failed: ${response.error || 'Unknown error'}`;
           }
