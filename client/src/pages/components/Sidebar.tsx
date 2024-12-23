@@ -8,7 +8,7 @@ const Sidebar: React.FC<SidebarProps> = ({ handleContentSelect }) => (
     <button className="menu-button" onClick={() => handleContentSelect('addPassword')}>Add Password</button>
     <button className="menu-button" onClick={() => handleContentSelect('recentActivities')}>Recent Activities</button>
     <button className="menu-button" onClick={() => handleContentSelect('availablePasswords')}>Available Passwords</button>
-    <button className="password-strength-button"  onClick={() => handleContentSelect('passwordStrength')}>Password Analysis Report</button>
+    <button className="menu-button"  onClick={() => handleContentSelect('passwordStrength')}>Password Analysis Report</button>
   </div>
 );
 

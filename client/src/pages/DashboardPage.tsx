@@ -11,6 +11,7 @@ import AddPassword from './components/AddPassword';
 import RecentActivities from './components/RecentActivities';
 import AvailablePasswords from './components/AvailablePasswords';
 import PasswordStrengthTable from './components/PasswordStrengthTable';
+import PasswordAnalysisReport from './components/PasswordAnalysisReport';
 import axios from 'axios';
 
 // Define the props interface
@@ -526,14 +527,14 @@ const Dashboard: React.FC<Props> = ({ username, onLogout }) => {
                     {selectedContent === null && (
                         <>
                             <h2>Your Passwords</h2>
-                            <PasswordStrengthTable password={passwordStrength} />
+                            <PasswordStrengthTable passwords={passwordStrength} />
                         </>
                     )}
 
                         {selectedContent === 'passwordStrength' && (
                                 <>
                                     <h2>Password Analysis Report</h2>
-                                    <PasswordStrengthTable password={passwordStrength} />
+                                    <PasswordAnalysisReport password={passwordStrength} />
                                 </>
                             )}
                     

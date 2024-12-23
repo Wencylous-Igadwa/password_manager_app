@@ -178,6 +178,56 @@ body {
     height: 100vh; /* Full height for the layout */
 }
 
+#password-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+  }
+  
+  #password-table th, #password-table td {
+    padding: 10px;
+    text-align: left;
+    border: 1px solid #ddd;
+  }
+  
+  #password-table tr:nth-child(even) {
+    background-color: #f2f2f2;
+  }
+  
+  #password-table th {
+    background-color: #4CAF50;
+    color: white;
+  }
+  
+  .very-strong {
+    color: darkgreen;
+  }
+  
+  .strong {
+    color: green;
+  }
+  
+  .moderate {
+    color: orange;
+  }
+  
+  .weak {
+    color: red;
+  }
+  
+  /* Strength Bar Styles */
+  .strength-bar-container {
+    display: flex;
+    align-items: center;
+  }
+  
+  .strength-bar {
+    height: 10px;
+    margin-right: 10px;
+    transition: width 0.3s ease;
+  }
+  
+
 .sidebar {
     flex: 0 0 200px; /* Set a fixed width for the sidebar */
     background-color: #007bff; /* Blue background */
@@ -325,6 +375,18 @@ th {
     border-radius: 5px;
     overflow: hidden;
     margin-top: 10px;
+}
+
+.download-report{
+    background-color: green;
+    padding: 10px;
+    font-size: 16px; /* Increase font size */
+    color: white; /* White text */
+    border: none; /* No border */
+    gap: 8px;
+    border-radius: 5px; /* Rounded corners */
+    cursor: pointer; /* Pointer cursor on hover */
+    
 }
 
 
